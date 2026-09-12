@@ -269,3 +269,82 @@ describe('invoices', () => {
     });
   });
 });
+
+describe('submitting to e-Factura (sandbox)', () => {
+  let submitApp: INestApplication;
+  let submitPrisma: PrismaService;
+  let submitServer: Server;
+  let submitCookie: string;
+  let submitPartnerId: string;
+
+  beforeAll(async () => {
+    ({ app: submitApp, prisma: submitPrisma } = await createTestApp());
+    submitServer = submitApp.getHttpServer() as Server;
+  });
+
+  afterAll(async () => {
+    await submitApp.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(submitPrisma);
+    const registered = await request(submitServer).post('/api/auth/register').send(OWNER).expect(201);
+    submitCookie = readCookie(cookiesOf(registered), 'access_token') ?? '';
+    const partner = await request(submitServer)
+      .post('/api/counterparties')
+      .set('Cookie', submitCookie)
+      .send(PARTNER)
+      .expect(201);
+    submitPartnerId = body<{ id: string }>(partner).id;
+  });
+
+  it('sends a draft, records the submission, and moves the invoice to SIGNED', async () => {
+    const created = await request(submitServer)
+      .post('/api/invoices')
+      .set('Cookie', submitCookie)
+      .send({
+        issueDate: today(),
+        counterpartyId: submitPartnerId,
+        lines: [{ name: 'Consultanță', quantity: '1', priceNet: '100.00', vatRate: '20' }],
+      })
+      .expect(201);
+    const { id } = body<{ id: string }>(created);
+
+    const response = await request(submitServer)
+      .post(`/api/invoices/${id}/submit`)
+      .set('Cookie', submitCookie)
+      .expect(200);
+
+    expect(body<{ status: string }>(response).status).toBe('SIGNED');
+
+    const invoice = await submitPrisma.invoice.findUniqueOrThrow({ where: { id } });
+    expect(invoice.status).toBe('SIGNED');
+    expect(invoice.efacturaId).toMatch(/^SANDBOX-/);
+    expect(invoice.sentAt).not.toBeNull();
+
+    const submission = await submitPrisma.efacturaSubmission.findFirstOrThrow({ where: { invoiceId: id } });
+    expect(submission.state).toBe('SUCCEEDED');
+    expect(submission.requestXml).toContain('<Factura');
+  });
+
+  it('refuses to send anything past DRAFT', async () => {
+    const created = await request(submitServer)
+      .post('/api/invoices')
+      .set('Cookie', submitCookie)
+      .send({
+        issueDate: today(),
+        counterpartyId: submitPartnerId,
+        lines: [{ name: 'X', quantity: '1', priceNet: '100.00', vatRate: '20' }],
+      })
+      .expect(201);
+    const { id } = body<{ id: string }>(created);
+
+    await submitPrisma.invoice.update({ where: { id }, data: { status: 'SIGNED' } });
+    const response = await request(submitServer)
+      .post(`/api/invoices/${id}/submit`)
+      .set('Cookie', submitCookie)
+      .expect(409);
+
+    expect(body<{ code: string }>(response).code).toBe('invoice_not_signable');
+  });
+});

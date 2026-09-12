@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { EfacturaModule } from '../efactura/efactura.module';
 
+import { InvoiceSubmitController } from './invoice-submit.controller';
 import { InvoicesController } from './invoices.controller';
 import { InvoicesService } from './invoices.service';
 
@@ -9,7 +10,7 @@ import { InvoicesService } from './invoices.service';
 /// provider; the module already imports it so the transition costs one line.
 @Module({
   imports: [EfacturaModule],
-  controllers: [InvoicesController],
+  controllers: [InvoicesController, InvoiceSubmitController],
   providers: [InvoicesService],
   exports: [InvoicesService],
 })

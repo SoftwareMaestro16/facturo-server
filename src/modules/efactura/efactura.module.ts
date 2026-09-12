@@ -2,6 +2,7 @@ import { Module, type Provider } from '@nestjs/common';
 
 import { TypedConfigService } from '@/config/typed-config.service';
 
+import { EfacturaService } from './efactura.service';
 import { EFACTURA_PROVIDER } from './providers/efactura-provider';
 import { SandboxEfacturaProvider } from './providers/sandbox-efactura.provider';
 import { SfsEfacturaProvider } from './providers/sfs-efactura.provider';
@@ -18,7 +19,7 @@ const providerFactory: Provider = {
 };
 
 @Module({
-  providers: [providerFactory],
-  exports: [EFACTURA_PROVIDER],
+  providers: [providerFactory, EfacturaService],
+  exports: [EFACTURA_PROVIDER, EfacturaService],
 })
 export class EfacturaModule {}

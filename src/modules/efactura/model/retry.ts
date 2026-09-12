@@ -48,6 +48,10 @@ export function nextRetry(
   };
 }
 
-export function shouldRetry(retryable: boolean, attempt: number, policy: RetryPolicy = DEFAULT_RETRY_POLICY): boolean {
+export function shouldRetry(
+  retryable: boolean,
+  attempt: number,
+  policy: RetryPolicy = DEFAULT_RETRY_POLICY,
+): boolean {
   return retryable && attempt < policy.maxAttempts;
 }
