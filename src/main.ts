@@ -30,7 +30,7 @@ async function bootstrap(): Promise<void> {
   app.setGlobalPrefix('api');
 
   app.use('/api', generalLimiter(config));
-  app.use(['/api/auth/login', '/api/auth/register'], authLimiter(config));
+  app.use(['/api/auth/login', '/api/auth/register', '/api/auth/google'], authLimiter(config));
 
   app.useGlobalPipes(
     new ValidationPipe({

@@ -37,6 +37,8 @@ export class EnvSchema {
   @IsString()
   COOKIE_DOMAIN = 'localhost';
 
+  @IsOptional() @IsString() GOOGLE_CLIENT_ID?: string;
+
   @IsIn(['sandbox', 'sfs'])
   EFACTURA_PROVIDER: 'sandbox' | 'sfs' = 'sandbox';
 

@@ -69,6 +69,7 @@ model User {
   email        String    @unique
   phone        String?
   passwordHash String
+  googleSubject String? @unique
   fullName     String
   role         UserRole  @default(OWNER)
   isActive     Boolean   @default(true)

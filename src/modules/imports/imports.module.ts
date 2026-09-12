@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
+import { ImportsController } from './imports.controller';
+import { ImportsService } from './imports.service';
 
-/// Skeleton. See PLAN.md for the phase that fills this module in.
-@Module({})
+@Module({ controllers: [ImportsController], providers: [ImportsService] })
 export class ImportsModule {}

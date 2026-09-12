@@ -2,14 +2,14 @@
   "name": "facturo-server",
   "version": "0.1.0",
   "private": true,
-  "description": "Facturo API \u2014 e-Factura (SFS Moldova) invoicing for small and medium business",
+  "description": "Facturo API — e-Factura (SFS Moldova) invoicing for small and medium business",
   "license": "UNLICENSED",
   "engines": {
     "node": ">=22.0.0"
   },
   "scripts": {
     "build": "nest build",
-    "start": "node dist/main",
+    "start": "node dist/src/main",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "lint": "eslint \"{src,test}/**/*.ts\" --max-warnings 0",
@@ -48,6 +48,8 @@
     "exceljs": "^4.4.0",
     "express-rate-limit": "^8.7.0",
     "fast-xml-parser": "^5.11.1",
+    "fflate": "^0.8.3",
+    "google-auth-library": "^11.0.2",
     "helmet": "^8.3.0",
     "nestjs-pino": "^5.1.0",
     "p-retry": "^8.0.1",

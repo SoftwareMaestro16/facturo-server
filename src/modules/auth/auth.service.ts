@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { hash, verify } from 'argon2';
 
@@ -8,6 +10,8 @@ import { normalizePhone } from '@/common/utils/phone';
 import type { RequestContext } from '@/common/utils/request-context';
 
 import type { ChangePasswordDto, LoginDto, RegisterDto, SessionResponse } from './dto';
+import type { GoogleRegisterDto } from './dto/google.dto';
+import type { GoogleIdentity } from './google.service';
 import { isLocked, registerFailure, registerSuccess } from './model/lockout';
 import { validatePassword } from './model/password-policy';
 import { type IssuedTokens, SessionService } from './session.service';
@@ -25,7 +29,7 @@ export class AuthService {
     private readonly audit: AuditService,
   ) {}
 
-  async register(dto: RegisterDto, context: RequestContext): Promise<AuthResult> {
+  async register(dto: RegisterDto, context: RequestContext, googleSubject?: string): Promise<AuthResult> {
     this.assertPasswordAllowed(dto.password, { phone: dto.phone });
 
     const email = normalizeEmail(dto.email);
@@ -42,7 +46,7 @@ export class AuthService {
       throw new ConflictException({ code: 'company_exists', message: 'This IDNO is already registered' });
     }
 
-    const user = await this.createCompanyWithOwner(dto, email);
+    const user = await this.createCompanyWithOwner(dto, email, googleSubject);
 
     this.audit.record({ type: 'REGISTER', userId: user.id, companyId: user.companyId, ...context });
 
@@ -79,6 +83,45 @@ export class AuthService {
       tokens: await this.sessions.issue(user, context),
       session: toSessionResponse(user),
     };
+  }
+
+  googleRegister(
+    dto: GoogleRegisterDto,
+    identity: GoogleIdentity,
+    context: RequestContext,
+  ): Promise<AuthResult> {
+    // An unknowable random password preserves the existing password contract.
+    // Google-only users authenticate using their immutable Google subject.
+    return this.register(
+      {
+        ...dto,
+        email: identity.email,
+        fullName: identity.fullName,
+        password: randomBytes(48).toString('base64url'),
+      },
+      context,
+      identity.subject,
+    );
+  }
+
+  async googleLogin(identity: GoogleIdentity, context: RequestContext): Promise<AuthResult> {
+    const user = await this.prisma.user.findUnique({
+      where: { googleSubject: identity.subject },
+      include: { company: true },
+    });
+    if (!user) {
+      throw new UnauthorizedException({
+        code: 'google_registration_required',
+        message: 'Register with Google first',
+      });
+    }
+    if (!user.isActive || isLocked(user)) throw invalidCredentials();
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { ...registerSuccess(), lastLoginAt: new Date() },
+    });
+    this.audit.record({ type: 'LOGIN_SUCCESS', userId: user.id, companyId: user.companyId, ...context });
+    return { tokens: await this.sessions.issue(user, context), session: toSessionResponse(user) };
   }
 
   async changePassword(
@@ -156,10 +199,11 @@ export class AuthService {
     });
   }
 
-  private async createCompanyWithOwner(dto: RegisterDto, email: string) {
+  private async createCompanyWithOwner(dto: RegisterDto, email: string, googleSubject?: string) {
     return this.prisma.user.create({
       data: {
         email,
+        googleSubject,
         phone: dto.phone ? normalizePhone(dto.phone) : null,
         fullName: dto.fullName,
         passwordHash: await hash(dto.password),

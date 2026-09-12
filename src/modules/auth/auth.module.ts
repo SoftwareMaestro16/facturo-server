@@ -3,6 +3,8 @@ import { JwtModule } from '@nestjs/jwt';
 
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { GoogleController } from './google.controller';
+import { GoogleService } from './google.service';
 import { SessionService } from './session.service';
 import { TokenService } from './token.service';
 
@@ -10,8 +12,8 @@ import { TokenService } from './token.service';
 /// refresh tokens are signed with different keys.
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [AuthController],
-  providers: [AuthService, SessionService, TokenService],
+  controllers: [AuthController, GoogleController],
+  providers: [AuthService, SessionService, TokenService, GoogleService],
   exports: [JwtModule, TokenService],
 })
 export class AuthModule {}

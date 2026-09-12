@@ -24,15 +24,9 @@ import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { Roles } from '@/common/decorators/roles.decorator';
 import type { AuthenticatedUser } from '@/common/types/authenticated-user';
 
-import {
-  CreateInvoiceDto,
-  InvoiceLineDto,
-  InvoicePage,
-  InvoiceQuery,
-  InvoiceResponse,
-  UpdateInvoiceDto,
-} from './dto';
+import { CreateInvoiceDto, InvoicePage, InvoiceQuery, InvoiceResponse, UpdateInvoiceDto } from './dto';
 import { InvoicesService } from './invoices.service';
+import { PreviewInvoiceDto, PreviewInvoiceResponse } from './dto/preview.dto';
 
 @ApiTags('invoices')
 @ApiCookieAuth()
@@ -66,8 +60,8 @@ export class InvoicesController {
   @Post('preview')
   @Roles('OWNER', 'ACCOUNTANT')
   @HttpCode(HttpStatus.OK)
-  @ApiOkResponse({ description: 'Subtotal, VAT and total for the given lines' })
-  preview(@Body() dto: { lines: InvoiceLineDto[] }) {
+  @ApiOkResponse({ type: PreviewInvoiceResponse, description: 'Subtotal, VAT and total for the given lines' })
+  preview(@Body() dto: PreviewInvoiceDto) {
     return this.invoices.preview(dto.lines);
   }
 

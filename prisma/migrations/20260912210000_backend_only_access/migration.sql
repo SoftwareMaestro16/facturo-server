@@ -1,0 +1,15 @@
+-- Facturo authenticates in NestJS; public Data API roles must not read these tables.
+ALTER TABLE "public"."Company" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."User" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."Session" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."AuditEvent" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."Counterparty" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."Product" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."NumberSeries" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."Invoice" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."InvoiceLine" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."EfacturaSubmission" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."Subscription" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."Payment" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."ImportJob" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."_prisma_migrations" ENABLE ROW LEVEL SECURITY;
