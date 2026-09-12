@@ -1,5 +1,11 @@
 import { Module } from '@nestjs/common';
 
-/// Skeleton. See PLAN.md for the phase that fills this module in.
-@Module({})
+import { CounterpartiesController } from './counterparties.controller';
+import { CounterpartiesService } from './counterparties.service';
+
+@Module({
+  controllers: [CounterpartiesController],
+  providers: [CounterpartiesService],
+  exports: [CounterpartiesService],
+})
 export class CounterpartiesModule {}

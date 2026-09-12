@@ -1,5 +1,11 @@
 import { Module } from '@nestjs/common';
 
-/// Skeleton. See PLAN.md for the phase that fills this module in.
-@Module({})
+import { CompaniesController } from './companies.controller';
+import { CompaniesService } from './companies.service';
+
+@Module({
+  controllers: [CompaniesController],
+  providers: [CompaniesService],
+  exports: [CompaniesService],
+})
 export class CompaniesModule {}
