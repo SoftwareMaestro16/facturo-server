@@ -9,8 +9,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private readonly logger = new Logger(PrismaService.name);
 
   constructor(config: TypedConfigService) {
-    // The Session pooler (port 5432) is required: the transaction pooler on
-    // 6543 drops prepared statements, and the direct host is IPv6-only.
+    // Runtime uses the pg adapter; migrations use DIRECT_URL in prisma.config.ts.
     super({ adapter: new PrismaPg({ connectionString: config.get('DATABASE_URL') }) });
   }
 

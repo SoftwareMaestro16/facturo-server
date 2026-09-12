@@ -5,12 +5,16 @@ import type { UserRole } from '@prisma/client';
 /// travel as httpOnly cookies, where JavaScript cannot reach them.
 export class SessionResponse {
   @ApiProperty() userId!: string;
-  @ApiPropertyOptional({ description: 'Null until the person creates or joins a company' })
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Null until the person creates or joins a company',
+  })
   companyId!: string | null;
   @ApiProperty() email!: string;
   @ApiProperty() fullName!: string;
   @ApiProperty({ enum: ['OWNER', 'ACCOUNTANT', 'VIEWER'] }) role!: UserRole;
-  @ApiPropertyOptional() companyName!: string | null;
-  @ApiPropertyOptional({ enum: ['ro', 'ru'] }) locale!: string | null;
-  @ApiPropertyOptional() vatCode?: string | null;
+  @ApiProperty({ type: String, nullable: true }) companyName!: string | null;
+  @ApiProperty({ type: String, nullable: true, enum: ['ro', 'ru'] }) locale!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) vatCode?: string | null;
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common';
 import { ApiOkResponse, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 
@@ -45,6 +45,7 @@ export class GoogleController {
   }
 
   @Post()
+  @HttpCode(200)
   @ApiOkResponse({ type: SessionResponse })
   @ApiUnauthorizedResponse({ description: 'google_invalid' })
   async authenticate(
