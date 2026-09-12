@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
-import type { AuthenticatedUser } from '@/common/types/authenticated-user';
+import type { AccessTokenPayload } from '@/common/types/authenticated-user';
 import { TypedConfigService } from '@/config/typed-config.service';
 
 import { durationToMilliseconds, durationToSeconds } from './model/duration';
@@ -24,7 +24,7 @@ export class TokenService {
     private readonly config: TypedConfigService,
   ) {}
 
-  signAccess(user: AuthenticatedUser): Promise<string> {
+  signAccess(user: AccessTokenPayload): Promise<string> {
     return this.jwt.signAsync(user, {
       secret: this.config.get('JWT_ACCESS_SECRET'),
       expiresIn: durationToSeconds(this.config.get('JWT_ACCESS_TTL')),

@@ -14,6 +14,6 @@ import { TokenService } from './token.service';
   imports: [JwtModule.register({})],
   controllers: [AuthController, GoogleController],
   providers: [AuthService, SessionService, TokenService, GoogleService],
-  exports: [JwtModule, TokenService],
+  exports: [JwtModule, TokenService, SessionService, AuthService],
 })
 export class AuthModule {}

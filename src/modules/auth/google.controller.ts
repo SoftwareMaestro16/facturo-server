@@ -1,5 +1,5 @@
-import { Body, Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common';
-import { ApiCreatedResponse, ApiOkResponse, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common';
+import { ApiOkResponse, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 
 import { Public } from '@/common/decorators/public.decorator';
@@ -9,12 +9,15 @@ import { TypedConfigService } from '@/config/typed-config.service';
 import { AuthService } from './auth.service';
 import { setAuthCookies } from './cookies';
 import { SessionResponse } from './dto';
-import { GoogleChallengeResponse, GoogleLoginDto, GoogleRegisterDto } from './dto/google.dto';
+import { GoogleAuthDto, GoogleChallengeResponse } from './dto/google.dto';
 import { GoogleService } from './google.service';
 import { TokenService } from './token.service';
 
 const NONCE_COOKIE = 'google_nonce';
 
+/// One endpoint for both: Google already tells us whether the email is new,
+/// so there is nothing left for the caller to choose between logging in and
+/// registering.
 @Public()
 @ApiTags('auth')
 @Controller('auth/google')
@@ -41,33 +44,16 @@ export class GoogleController {
     return { nonce };
   }
 
-  @Post('login')
-  @HttpCode(200)
+  @Post()
   @ApiOkResponse({ type: SessionResponse })
-  @ApiUnauthorizedResponse({
-    description: 'google_invalid | google_registration_required | invalid_credentials',
-  })
-  async login(
-    @Body() dto: GoogleLoginDto,
+  @ApiUnauthorizedResponse({ description: 'google_invalid' })
+  async authenticate(
+    @Body() dto: GoogleAuthDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<SessionResponse> {
     const identity = await this.google.verify(dto.credential, this.readNonce(request));
-    const result = await this.auth.googleLogin(identity, readRequestContext(request));
-    response.clearCookie(NONCE_COOKIE, { path: '/api/auth/google' });
-    setAuthCookies(response, result.tokens, this.config, this.tokens);
-    return result.session;
-  }
-
-  @Post('register')
-  @ApiCreatedResponse({ type: SessionResponse })
-  async register(
-    @Body() dto: GoogleRegisterDto,
-    @Req() request: Request,
-    @Res({ passthrough: true }) response: Response,
-  ): Promise<SessionResponse> {
-    const identity = await this.google.verify(dto.credential, this.readNonce(request));
-    const result = await this.auth.googleRegister(dto, identity, readRequestContext(request));
+    const result = await this.auth.googleAuth(identity, readRequestContext(request));
     response.clearCookie(NONCE_COOKIE, { path: '/api/auth/google' });
     setAuthCookies(response, result.tokens, this.config, this.tokens);
     return result.session;

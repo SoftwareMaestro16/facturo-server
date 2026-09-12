@@ -82,8 +82,9 @@ describe('auth', () => {
       await register().expect(201);
 
       const user = await prisma.user.findFirstOrThrow();
+      expect(user.passwordHash).not.toBeNull();
       expect(user.passwordHash).not.toContain(REGISTRATION.password);
-      expect(user.passwordHash.startsWith('$argon2')).toBe(true);
+      expect(user.passwordHash?.startsWith('$argon2')).toBe(true);
     });
 
     it('refuses a second account on the same email or the same company', async () => {

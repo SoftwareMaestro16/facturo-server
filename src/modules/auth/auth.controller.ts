@@ -20,9 +20,11 @@ import {
 } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 
+import { AllowNoCompany } from '@/common/decorators/allow-no-company.decorator';
+import { CurrentIdentity } from '@/common/decorators/current-identity.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { Public } from '@/common/decorators/public.decorator';
-import type { AuthenticatedUser } from '@/common/types/authenticated-user';
+import type { AccessTokenPayload, AuthenticatedUser } from '@/common/types/authenticated-user';
 import { readRequestContext } from '@/common/utils/request-context';
 import { TypedConfigService } from '@/config/typed-config.service';
 
@@ -114,17 +116,18 @@ export class AuthController {
   }
 
   @ApiCookieAuth()
+  @AllowNoCompany()
   @Get('me')
   @ApiOkResponse({ type: SessionResponse })
-  describe(@CurrentUser() user: AuthenticatedUser): Promise<SessionResponse> {
-    return this.auth.describe(user);
+  describe(@CurrentIdentity() identity: AccessTokenPayload): Promise<SessionResponse> {
+    return this.auth.describe(identity);
   }
 
   @ApiCookieAuth()
   @Post('change-password')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse({ description: 'Every session is revoked; the caller signs in again' })
-  @ApiUnauthorizedResponse({ description: 'invalid_credentials' })
+  @ApiUnauthorizedResponse({ description: 'invalid_credentials | no_password_set' })
   async changePassword(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: ChangePasswordDto,

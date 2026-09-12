@@ -11,7 +11,8 @@ import { TokenService } from './token.service';
 
 export interface SessionUser {
   id: string;
-  companyId: string;
+  /// Null for an identity that has not created or joined a company yet.
+  companyId: string | null;
   email: string;
   role: UserRole;
 }
@@ -152,6 +153,11 @@ export class SessionService {
   }
 }
 
-function toSessionUser(user: { id: string; companyId: string; email: string; role: UserRole }): SessionUser {
+function toSessionUser(user: {
+  id: string;
+  companyId: string | null;
+  email: string;
+  role: UserRole;
+}): SessionUser {
   return { id: user.id, companyId: user.companyId, email: user.email, role: user.role };
 }

@@ -42,7 +42,9 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Users whose *current* company this is — see the note on User.companyId.
   users          User[]
+  memberships    Membership[]
   counterparties Counterparty[]
   products       Product[]
   invoices       Invoice[]
@@ -63,14 +65,24 @@ enum UserRole {
 
 model User {
   id        String   @id @default(cuid())
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// The company a freshly issued session defaults to. Nullable: a person who
+  /// just signed in with Google and has not created or joined a company yet
+  /// has an identity but no company — see AllowNoCompany and its guard check.
+  /// Authorization for a *specific* request never reads this column; it reads
+  /// the JWT's own companyId, which the person may have switched away from
+  /// this default without it changing here.
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
   email        String    @unique
   phone        String?
-  passwordHash String
+  /// Null for a Google-only account: nothing to compare a login attempt against.
+  passwordHash String?
   googleSubject String? @unique
   fullName     String
+  /// Vestigial once a person has more than one company — Membership.role is
+  /// authoritative there. Kept as the role of their *current* company so a
+  /// row in this table still describes one coherent person without a join.
   role         UserRole  @default(OWNER)
   isActive     Boolean   @default(true)
 
@@ -82,9 +94,29 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sessions Session[]
+  sessions    Session[]
+  memberships Membership[]
 
   @@index([companyId, isActive])
+}
+
+/// One person can run several real companies — an accountant with client
+/// firms, an entrepreneur with more than one LLC. This table is what makes
+/// that possible: it is the authoritative record of who may act as whom,
+/// while User.companyId/role stay a denormalised "last used" convenience so
+/// the single-company code paths never had to learn about a join.
+model Membership {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  role      UserRole @default(OWNER)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, companyId])
+  @@index([companyId])
 }
 
 model Session {
