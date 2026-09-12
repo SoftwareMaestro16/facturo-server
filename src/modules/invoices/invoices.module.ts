@@ -2,10 +2,15 @@ import { Module } from '@nestjs/common';
 
 import { EfacturaModule } from '../efactura/efactura.module';
 
-/// Phase 1 adds the controller and service; phase 2 wires the submission queue
-/// to the e-Factura provider. The arithmetic and the status machine already
-/// live in model/ and are covered by unit tests.
+import { InvoicesController } from './invoices.controller';
+import { InvoicesService } from './invoices.service';
+
+/// Phase 1 adds the draft flow. Phase 2 will wire submission to the e-Factura
+/// provider; the module already imports it so the transition costs one line.
 @Module({
   imports: [EfacturaModule],
+  controllers: [InvoicesController],
+  providers: [InvoicesService],
+  exports: [InvoicesService],
 })
 export class InvoicesModule {}
