@@ -1,0 +1,37 @@
+Facturo — Proprietary Software Licence
+Copyright (c) 2026 Facturo. All rights reserved.
+
+This software and its source code, including but not limited to its
+architecture, database schema, interface design, texts, translations and
+documentation (together, the "Software"), are the exclusive property of the
+copyright holder and are protected by the copyright law of the Republic of
+Moldova and by international treaties.
+
+NO LICENCE IS GRANTED.
+
+No person or entity may, without the prior written permission of the copyright
+holder:
+
+  1. copy, reproduce or store the Software, in whole or in part;
+  2. modify, adapt, translate or create derivative works from it;
+  3. distribute, publish, sublicense, sell, rent or lend it;
+  4. make it available to any third party, publicly or privately;
+  5. use it to build, train or evaluate a competing product or service;
+  6. decompile, disassemble or otherwise attempt to derive its source code from
+     a compiled or hosted form.
+
+Access to this repository, whether granted deliberately or obtained
+accidentally, confers no licence of any kind. A contributor, contractor or
+employee who is given access does so under a separate written agreement; in the
+absence of such an agreement, all rights in any contribution nevertheless vest
+in the copyright holder to the fullest extent permitted by law, and the
+contributor undertakes to sign any assignment required to give effect to this.
+
+Third-party components used by the Software remain under their own licences.
+Nothing here restricts rights those licences grant.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. THE COPYRIGHT HOLDER IS NOT LIABLE FOR ANY CLAIM, DAMAGE OR OTHER
+LIABILITY ARISING FROM THE SOFTWARE OR ITS USE.
+
+Contact for permissions: legal@facturo.md

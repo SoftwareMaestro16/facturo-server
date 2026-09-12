@@ -34,6 +34,8 @@ export class SandboxPaymentProvider implements PaymentProvider {
     );
   }
 
+  /// Accepts everything, which is exactly why the config validator refuses to
+  /// let this provider run in production.
   verifyCallback(): boolean {
     return true;
   }

@@ -4,6 +4,7 @@ import { TypedConfigService } from '@/config/typed-config.service';
 
 import type {
   DocumentStatus,
+  EfacturaAction,
   EfacturaDocument,
   EfacturaProvider,
   IncomingDocument,
@@ -18,7 +19,10 @@ import type {
 /// Filling this in from assumptions would produce documents the validator
 /// rejects, and the rejection surfaces at the customer, not here.
 ///
-/// See PLAN.md, phase 2, for the checklist this class has to satisfy.
+/// See PLAN.md phase 2 for the checklist, and
+/// .claude/skills/efactura-standard/SKILL.md for what the platform actually
+/// requires: the two lifecycles, the statuses, the issue-date rules and the
+/// cancellation flow.
 @Injectable()
 export class SfsEfacturaProvider implements EfacturaProvider {
   constructor(private readonly config: TypedConfigService) {}
@@ -35,7 +39,7 @@ export class SfsEfacturaProvider implements EfacturaProvider {
     return this.notReady();
   }
 
-  respond(_externalId: string, _action: 'ACCEPT' | 'REJECT', _reason?: string): Promise<never> {
+  act(_externalId: string, _action: EfacturaAction, _reason?: string): Promise<DocumentStatus> {
     return this.notReady();
   }
 

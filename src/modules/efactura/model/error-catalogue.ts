@@ -23,9 +23,11 @@ const UNKNOWN: EfacturaErrorExplanation = {
   retryable: false,
 };
 
-/// Seeded with the failures that are certain to appear, mapped from HTTP and
-/// transport level conditions. Platform-specific codes are added as phase 2
-/// observes them against the SFS test environment — never invented in advance.
+/// Seeded with two kinds of entry: failures of the exchange itself, which are
+/// certain to appear, and refusals that follow from rules written down in the
+/// regulation. Codes specific to the platform's own validator are added as
+/// phase 2 observes them against the test environment — never invented in
+/// advance, because a wrong sentence is worse than the honest fallback.
 const CATALOGUE: readonly EfacturaErrorExplanation[] = [
   {
     code: 'efactura_unavailable',
@@ -63,6 +65,47 @@ const CATALOGUE: readonly EfacturaErrorExplanation[] = [
     ro: 'O factură cu acest număr a fost deja trimisă. Folosiți următorul număr din serie.',
     ru: 'Счёт с таким номером уже отправлен. Используйте следующий номер серии.',
     field: 'number',
+    retryable: false,
+  },
+  {
+    // The regulation allows the issue date to be today or up to ten calendar
+    // days ahead, and nothing earlier.
+    code: 'efactura_issue_date_in_past',
+    ro: 'Data facturii a trecut. Puneți data de azi sau o dată din următoarele 10 zile.',
+    ru: 'Дата счёта уже прошла. Поставьте сегодняшнюю дату или дату в пределах 10 дней.',
+    field: 'issueDate',
+    retryable: false,
+  },
+  {
+    code: 'efactura_issue_date_too_far_ahead',
+    ro: 'Data facturii este prea departe. Cel mult 10 zile de azi înainte.',
+    ru: 'Дата счёта слишком далеко. Не больше 10 дней вперёд.',
+    field: 'issueDate',
+    retryable: false,
+  },
+  {
+    // If the second signature lands after the issue date, the document can no
+    // longer be completed. Saying this plainly is the difference between the
+    // customer losing an hour and losing a deduction.
+    code: 'efactura_signing_window_closed',
+    ro: 'Data facturii a trecut, așa că documentul nu mai poate fi finalizat. Anulați-l și emiteți unul nou cu data de azi.',
+    ru: 'Дата счёта прошла, поэтому документ уже нельзя завершить. Отмените его и выставьте новый с сегодняшней датой.',
+    field: 'issueDate',
+    retryable: false,
+  },
+  {
+    // A finished long-cycle document carries the buyer's signature, so the
+    // supplier cannot withdraw it alone.
+    code: 'efactura_cancellation_needs_buyer',
+    ro: 'Factura este semnată de cumpărător. Anularea are nevoie de acordul lui — am trimis cererea.',
+    ru: 'Счёт подписан покупателем. Для отмены нужно его согласие — запрос отправлен.',
+    retryable: false,
+  },
+  {
+    code: 'efactura_supplier_not_registered',
+    ro: 'Compania dumneavoastră nu apare ca înregistrată în e-Factura. Verificați IDNO în Setări.',
+    ru: 'Ваша компания не числится зарегистрированной в e-Factura. Проверьте IDNO в Настройках.',
+    field: 'companyIdno',
     retryable: false,
   },
 ];

@@ -11,7 +11,10 @@ CREATE TYPE "AuditEventType" AS ENUM ('LOGIN_SUCCESS', 'LOGIN_FAILURE', 'ACCOUNT
 CREATE TYPE "InvoiceDirection" AS ENUM ('OUTGOING', 'INCOMING');
 
 -- CreateEnum
-CREATE TYPE "InvoiceStatus" AS ENUM ('DRAFT', 'SIGNING', 'SENT', 'DELIVERED', 'ACCEPTED', 'REJECTED', 'CANCELLED', 'ERROR');
+CREATE TYPE "InvoiceCycle" AS ENUM ('SHORT', 'LONG');
+
+-- CreateEnum
+CREATE TYPE "InvoiceStatus" AS ENUM ('DRAFT', 'SIGNED', 'SENT', 'RECEIVED', 'FINISHED', 'CANCELLATION_REQUESTED', 'CANCELLED', 'ERROR');
 
 -- CreateEnum
 CREATE TYPE "SubmissionState" AS ENUM ('QUEUED', 'IN_FLIGHT', 'SUCCEEDED', 'FAILED');
@@ -154,6 +157,7 @@ CREATE TABLE "Invoice" (
     "companyId" TEXT NOT NULL,
     "direction" "InvoiceDirection" NOT NULL,
     "status" "InvoiceStatus" NOT NULL DEFAULT 'DRAFT',
+    "cycle" "InvoiceCycle" NOT NULL DEFAULT 'LONG',
     "statusReason" TEXT,
     "series" TEXT NOT NULL,
     "number" INTEGER NOT NULL,
@@ -170,11 +174,18 @@ CREATE TABLE "Invoice" (
     "vatTotal" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "total" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "notes" TEXT,
+    "loadingPoint" TEXT,
+    "unloadingPoint" TEXT,
+    "transporterName" TEXT,
+    "transporterIdno" TEXT,
+    "vehicleNumber" TEXT,
+    "driverName" TEXT,
     "efacturaId" TEXT,
     "efacturaSeries" TEXT,
     "efacturaNumber" TEXT,
     "sentAt" TIMESTAMP(3),
-    "acceptedAt" TIMESTAMP(3),
+    "finishedAt" TIMESTAMP(3),
+    "cancelledAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 

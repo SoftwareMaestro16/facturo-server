@@ -1,19 +1,23 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
-
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 
 import { TypedConfigService } from '@/config/typed-config.service';
+
+import { type CallbackObject, verifySignature } from '../model/maib-signature';
 
 import type { CheckoutRequest, CheckoutSession, PaymentCallback, PaymentProvider } from './payment-provider';
 
 /// maib e-commerce.
 ///
-/// The request shape is settled: authenticate with project id and secret to get
-/// a bearer token, register a checkout, redirect the customer to the returned
-/// url, and reconcile on the callback. The exact endpoint paths and field names
-/// come from docs.maibmerchants.md once the business account is enrolled for
-/// e-commerce — they are not guessed here, because a wrong field name fails at
-/// the first real payment rather than in a test.
+/// The shape of the flow is settled: authenticate with the project id and
+/// secret to obtain a bearer token, register the payment, redirect the customer
+/// to the returned page, and reconcile on the callback. The exact endpoint
+/// paths and field names come from docs.maibmerchants.md once the business
+/// account is enrolled for e-commerce; they are not guessed here, because a
+/// wrong field name fails at the first real payment rather than in a test.
+///
+/// Signature verification is implemented, because that part is documented and
+/// getting it wrong means accepting a forged "paid" callback. See
+/// .claude/skills/payments-maib/SKILL.md.
 @Injectable()
 export class MaibPaymentProvider implements PaymentProvider {
   constructor(private readonly config: TypedConfigService) {}
@@ -26,21 +30,19 @@ export class MaibPaymentProvider implements PaymentProvider {
     return this.notReady();
   }
 
-  /// maib signs the callback body with the project's signature key and sends
-  /// the digest as "sha256=<hex>". Comparison is constant time so a forged
-  /// signature cannot be discovered a byte at a time.
-  verifyCallback(rawBody: string, signatureHeader: string): boolean {
-    const key = this.config.get('MAIB_SIGNATURE_KEY');
+  /// maib signs the `result` object of the callback with the project's
+  /// Signature Key. The comparison is constant time so a forged signature
+  /// cannot be discovered a character at a time.
+  verifyCallback(rawBody: string): boolean {
+    const parsed = safeParse(rawBody);
 
-    if (!key) {
+    if (!parsed) {
       return false;
     }
 
-    const expected = `sha256=${createHmac('sha256', key).update(rawBody, 'utf8').digest('hex')}`;
-    const expectedBuffer = Buffer.from(expected, 'utf8');
-    const receivedBuffer = Buffer.from(signatureHeader, 'utf8');
+    const { result, signature } = parsed;
 
-    return expectedBuffer.length === receivedBuffer.length && timingSafeEqual(expectedBuffer, receivedBuffer);
+    return verifySignature(result, signature, this.config.get('MAIB_SIGNATURE_KEY') ?? '');
   }
 
   parseCallback(_rawBody: string): PaymentCallback {
@@ -58,4 +60,28 @@ export class MaibPaymentProvider implements PaymentProvider {
       }),
     );
   }
+}
+
+/// A callback body that is not the expected shape is not a soft failure to log
+/// and continue past — it is either a bug or an attempt, and both mean reject.
+function safeParse(rawBody: string): { result: CallbackObject; signature: string } | undefined {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(rawBody);
+  } catch {
+    return undefined;
+  }
+
+  if (typeof parsed !== 'object' || parsed === null) {
+    return undefined;
+  }
+
+  const { result, signature } = parsed as { result?: unknown; signature?: unknown };
+
+  if (typeof result !== 'object' || result === null || typeof signature !== 'string') {
+    return undefined;
+  }
+
+  return { result: result as CallbackObject, signature };
 }

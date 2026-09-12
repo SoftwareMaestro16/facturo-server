@@ -5,6 +5,10 @@
 //      This is the only thing standing between one customer's invoices and
 //      another's.
 //   2. Money is Decimal, never Float. Quantities are Decimal(12, 3).
+//
+// Retention: fiscal documents and the evidence of what was transmitted must be
+// kept for six years. Nothing under Invoice or EfacturaSubmission is hard
+// deleted before that, including when a company closes its account.
 
 generator client {
   provider = "prisma-client-js"
@@ -181,8 +185,12 @@ model Product {
   @@index([companyId, isArchived, name])
 }
 
-/// Per-company invoice numbering. Kept as a row so the next number can be
-/// handed out inside the same transaction that creates the invoice.
+/// Per-company draft numbering, kept as a row so the next number can be handed
+/// out inside the same transaction that creates the invoice.
+///
+/// This is not the fiscal series: those are assigned by the State Tax Service.
+/// This numbering exists so a draft has a stable handle before the platform has
+/// seen it, and so the customer recognises their own document in a list.
 model NumberSeries {
   id        String  @id @default(cuid())
   companyId String
@@ -202,22 +210,45 @@ enum InvoiceDirection {
   INCOMING
 }
 
+/// Which lifecycle the supplier chose when issuing the document.
+///
+/// SHORT ("ciclu scurt"): the document reaches its final state on the supplier's
+/// second signature. The supplier then prints it, signs by hand and hands the
+/// paper to the buyer.
+///
+/// LONG ("ciclu lung"): the buyer signs electronically and the document never
+/// leaves the system. This is the one that matters after the October 2026
+/// mandate, and the one Facturo defaults to.
+enum InvoiceCycle {
+  SHORT
+  LONG
+}
+
+/// Mirrors the states a document actually has in SIA "e-Factura", plus one of
+/// our own.
+///
+/// Naming follows the platform rather than a tidier scheme of our own, because
+/// the customer sees these words on the state portal and in their accountant's
+/// vocabulary, and two different names for one state is how support calls start.
 enum InvoiceStatus {
-  /// Editable, exists only in Facturo.
+  /// "Nouă" — editable, exists only in Facturo, not yet known to the platform.
   DRAFT
-  /// Handed to the signing step; no longer editable.
-  SIGNING
-  /// Accepted by the e-Factura platform for delivery.
+  /// "Semnată" — the supplier's first electronic signature is applied.
+  SIGNED
+  /// "Expediată" — handed to the platform and visible to the buyer.
   SENT
-  /// The platform confirms the buyer can see it.
-  DELIVERED
-  /// The buyer accepted it.
-  ACCEPTED
-  /// The buyer rejected it; `statusReason` carries their explanation.
-  REJECTED
-  /// Withdrawn by the supplier before acceptance.
+  /// "Recepționată" — the buyer has taken delivery in the system.
+  RECEIVED
+  /// "Finisată" — final. Short cycle: the supplier's second signature. Long
+  /// cycle: the buyer's signature. Nothing follows except cancellation.
+  FINISHED
+  /// The supplier asked to cancel a finished long-cycle document. It stays here
+  /// until the buyer accepts the cancellation in the system.
+  CANCELLATION_REQUESTED
+  /// "Anulată" — cancelled.
   CANCELLED
-  /// Submission failed. `statusReason` carries a human sentence, not an API code.
+  /// Not a platform state. Our submission failed; `statusReason` carries a
+  /// sentence a human can act on, never an API code.
   ERROR
 }
 
@@ -228,6 +259,7 @@ model Invoice {
 
   direction InvoiceDirection
   status    InvoiceStatus    @default(DRAFT)
+  cycle     InvoiceCycle     @default(LONG)
   /// Why the invoice is in its current status, phrased for a human.
   statusReason String?
 
@@ -253,12 +285,29 @@ model Invoice {
 
   notes String?
 
-  /// Identifier assigned by the e-Factura platform. Null until first accepted.
+  /// Transport block. Required by the standard invoice form when goods move;
+  /// left empty for services. The loading and unloading points are rows 5 and 6
+  /// of the form and are what a tax inspection looks at first for goods.
+  loadingPoint    String?
+  unloadingPoint  String?
+  transporterName String?
+  transporterIdno String?
+  vehicleNumber   String?
+  driverName      String?
+
+  /// Identifier assigned by the e-Factura platform. Null until the platform has
+  /// accepted the document.
+  ///
+  /// The series and number of a fiscal invoice are issued by the State Tax
+  /// Service, not chosen by us: `series` and `number` above are Facturo's own
+  /// draft numbering, and these three fields hold what the platform assigned.
   efacturaId     String?
   efacturaSeries String?
   efacturaNumber String?
   sentAt         DateTime?
-  acceptedAt     DateTime?
+  /// When the document reached FINISHED.
+  finishedAt     DateTime?
+  cancelledAt    DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

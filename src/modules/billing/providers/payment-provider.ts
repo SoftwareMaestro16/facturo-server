@@ -36,8 +36,9 @@ export interface PaymentProvider {
   createCheckout(request: CheckoutRequest): Promise<CheckoutSession>;
   getPayment(externalId: string): Promise<PaymentCallback>;
   /// Returns false for a body whose signature does not match. A false here is a
-  /// forged callback, and it must never be treated as a soft failure.
-  verifyCallback(rawBody: string, signatureHeader: string): boolean;
+  /// forged or malformed callback, and it must never be treated as a soft
+  /// failure to log and continue past.
+  verifyCallback(rawBody: string): boolean;
   parseCallback(rawBody: string): PaymentCallback;
 }
 

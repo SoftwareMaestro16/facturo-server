@@ -14,3 +14,6 @@ coverage/
 .vscode/*
 !.vscode/extensions.json
 openapi.json
+
+# Written by `rtk init`: records this machine's binary path.
+.claude/settings.local.json

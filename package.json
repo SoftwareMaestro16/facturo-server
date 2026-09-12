@@ -2,7 +2,7 @@
   "name": "facturo-server",
   "version": "0.1.0",
   "private": true,
-  "description": "Facturo API — e-Factura (SFS Moldova) invoicing for small and medium business",
+  "description": "Facturo API \u2014 e-Factura (SFS Moldova) invoicing for small and medium business",
   "license": "UNLICENSED",
   "engines": {
     "node": ">=22.0.0"
