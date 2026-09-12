@@ -1,0 +1,425 @@
+// Facturo — data model.
+//
+// Two rules govern every table here and are not negotiable:
+//   1. Every business row carries `companyId`, and every query filters by it.
+//      This is the only thing standing between one customer's invoices and
+//      another's.
+//   2. Money is Decimal, never Float. Quantities are Decimal(12, 3).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Tenancy and people ──────────────────────────────────────────────────────
+
+model Company {
+  id        String  @id @default(cuid())
+  /// IDNO — the 13-digit state registration number.
+  idno      String  @unique
+  name      String
+  /// VAT registration code. Null until the company crosses the threshold.
+  vatCode   String?
+  isVatPayer Boolean @default(true)
+  address   String?
+  city      String?
+  country   String  @default("MD")
+  email     String?
+  phone     String?
+  iban      String?
+  bankName  String?
+  bankBic   String?
+  /// Interface language of the account: "ro" or "ru".
+  locale    String  @default("ro")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users          User[]
+  counterparties Counterparty[]
+  products       Product[]
+  invoices       Invoice[]
+  subscription   Subscription?
+  payments       Payment[]
+  importJobs     ImportJob[]
+  auditEvents    AuditEvent[]
+  numberSeries   NumberSeries[]
+
+  @@index([createdAt])
+}
+
+enum UserRole {
+  OWNER
+  ACCOUNTANT
+  VIEWER
+}
+
+model User {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  email        String    @unique
+  phone        String?
+  passwordHash String
+  fullName     String
+  role         UserRole  @default(OWNER)
+  isActive     Boolean   @default(true)
+
+  /// Lockout state. Cleared on a successful login.
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions Session[]
+
+  @@index([companyId, isActive])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// SHA-256 of the refresh token. A stolen copy of this table is worthless.
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  /// Set when this session was rotated, pointing at its replacement. Reuse of a
+  /// rotated token means the token leaked, and the whole chain gets revoked.
+  replacedById String?
+
+  userAgent String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+enum AuditEventType {
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  ACCOUNT_LOCKED
+  REGISTER
+  PASSWORD_CHANGED
+  SESSION_ROTATED
+  SESSION_REVOKED
+  INVOICE_SENT
+  INVOICE_STATUS_CHANGED
+  PAYMENT_RECEIVED
+}
+
+model AuditEvent {
+  id        String         @id @default(cuid())
+  companyId String?
+  company   Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  userId    String?
+  type      AuditEventType
+  ip        String?
+  userAgent String?
+  meta      Json?
+  createdAt DateTime       @default(now())
+
+  @@index([companyId, type, createdAt])
+}
+
+// ─── Catalogue ───────────────────────────────────────────────────────────────
+
+model Counterparty {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name       String
+  idno       String
+  vatCode    String?
+  isVatPayer Boolean @default(true)
+  address    String?
+  email      String?
+  phone      String?
+  iban       String?
+  bankName   String?
+  isArchived Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  invoices Invoice[]
+
+  @@unique([companyId, idno])
+  @@index([companyId, isArchived, name])
+}
+
+model Product {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  code String?
+  name String
+  /// Unit of measure, classifier code per the national UCM list (e.g. "H87").
+  unit String  @default("H87")
+  /// Net unit price, VAT excluded.
+  priceNet Decimal @db.Decimal(12, 2)
+  /// 20, 8, 0 or exempt. Stored as a rate, not an enum, because the list moves.
+  vatRate  Decimal @db.Decimal(5, 2) @default(20)
+  isArchived Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lines InvoiceLine[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isArchived, name])
+}
+
+/// Per-company invoice numbering. Kept as a row so the next number can be
+/// handed out inside the same transaction that creates the invoice.
+model NumberSeries {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  series    String
+  nextValue Int     @default(1)
+  isDefault Boolean @default(false)
+
+  @@unique([companyId, series])
+}
+
+// ─── Invoices ────────────────────────────────────────────────────────────────
+
+enum InvoiceDirection {
+  OUTGOING
+  INCOMING
+}
+
+enum InvoiceStatus {
+  /// Editable, exists only in Facturo.
+  DRAFT
+  /// Handed to the signing step; no longer editable.
+  SIGNING
+  /// Accepted by the e-Factura platform for delivery.
+  SENT
+  /// The platform confirms the buyer can see it.
+  DELIVERED
+  /// The buyer accepted it.
+  ACCEPTED
+  /// The buyer rejected it; `statusReason` carries their explanation.
+  REJECTED
+  /// Withdrawn by the supplier before acceptance.
+  CANCELLED
+  /// Submission failed. `statusReason` carries a human sentence, not an API code.
+  ERROR
+}
+
+model Invoice {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  direction InvoiceDirection
+  status    InvoiceStatus    @default(DRAFT)
+  /// Why the invoice is in its current status, phrased for a human.
+  statusReason String?
+
+  series String
+  number Int
+  issueDate    DateTime @db.Date
+  deliveryDate DateTime? @db.Date
+  dueDate      DateTime? @db.Date
+
+  counterpartyId String?
+  counterparty   Counterparty? @relation(fields: [counterpartyId], references: [id], onDelete: SetNull)
+  /// Counterparty details are copied onto the invoice at issue time. A later
+  /// edit to the directory must never rewrite a document already sent.
+  counterpartyName    String
+  counterpartyIdno    String
+  counterpartyVatCode String?
+  counterpartyAddress String?
+
+  currency String  @default("MDL")
+  subtotal Decimal @db.Decimal(12, 2) @default(0)
+  vatTotal Decimal @db.Decimal(12, 2) @default(0)
+  total    Decimal @db.Decimal(12, 2) @default(0)
+
+  notes String?
+
+  /// Identifier assigned by the e-Factura platform. Null until first accepted.
+  efacturaId     String?
+  efacturaSeries String?
+  efacturaNumber String?
+  sentAt         DateTime?
+  acceptedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lines       InvoiceLine[]
+  submissions EfacturaSubmission[]
+
+  @@unique([companyId, series, number])
+  @@index([companyId, direction, status, issueDate])
+  @@index([companyId, counterpartyId, issueDate])
+  @@index([efacturaId])
+}
+
+model InvoiceLine {
+  id        String  @id @default(cuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  position  Int
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  name     String
+  unit     String  @default("H87")
+  quantity Decimal @db.Decimal(12, 3)
+  priceNet Decimal @db.Decimal(12, 2)
+  vatRate  Decimal @db.Decimal(5, 2)
+
+  /// Derived from the four fields above, stored so a historical document never
+  /// changes when the rounding rules are revisited.
+  amountNet   Decimal @db.Decimal(12, 2)
+  vatAmount   Decimal @db.Decimal(12, 2)
+  amountGross Decimal @db.Decimal(12, 2)
+
+  @@unique([invoiceId, position])
+  @@index([invoiceId])
+}
+
+enum SubmissionState {
+  QUEUED
+  IN_FLIGHT
+  SUCCEEDED
+  FAILED
+}
+
+/// One row per attempt to hand a document to the e-Factura platform. Kept
+/// verbatim: when the platform disputes what was sent, this is the evidence.
+model EfacturaSubmission {
+  id        String  @id @default(cuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  attempt      Int
+  state        SubmissionState @default(QUEUED)
+  requestXml   String?
+  responseRaw  String?
+  errorCode    String?
+  errorMessage String?
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([invoiceId, attempt])
+  @@index([state, createdAt])
+}
+
+// ─── Billing (maib e-commerce) ───────────────────────────────────────────────
+
+enum PlanCode {
+  FREE
+  STARTER
+  BUSINESS
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+}
+
+model Subscription {
+  id        String  @id @default(cuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  plan   PlanCode           @default(FREE)
+  status SubscriptionStatus @default(ACTIVE)
+
+  /// Outgoing invoices allowed in the current period. Null means unlimited.
+  invoiceQuota Int?
+  invoicesUsed Int  @default(0)
+
+  currentPeriodStart DateTime @default(now())
+  currentPeriodEnd   DateTime
+
+  /// maib billerId for the saved card, when the customer opted into recurring
+  /// charges. Never store card numbers — only this token.
+  maibBillerId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model Payment {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  plan     PlanCode
+  amount   Decimal       @db.Decimal(12, 2)
+  currency String        @default("MDL")
+  status   PaymentStatus @default(PENDING)
+
+  /// Identifier returned by maib for this transaction.
+  maibPayId String? @unique
+  /// The callback body as received, for reconciliation against the bank.
+  rawCallback Json?
+
+  createdAt DateTime  @default(now())
+  paidAt    DateTime?
+
+  @@index([companyId, status, createdAt])
+}
+
+// ─── Bulk import ─────────────────────────────────────────────────────────────
+
+enum ImportKind {
+  COUNTERPARTIES
+  PRODUCTS
+}
+
+enum ImportStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+model ImportJob {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  kind      ImportKind
+  status    ImportStatus @default(PENDING)
+  fileName  String
+  totalRows Int          @default(0)
+  okRows    Int          @default(0)
+  errorRows Int          @default(0)
+  /// Row number to human-readable reason, so the customer can fix the sheet.
+  errors    Json?
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([companyId, createdAt])
+}

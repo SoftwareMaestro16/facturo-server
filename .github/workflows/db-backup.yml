@@ -1,0 +1,25 @@
+name: Nightly database dump
+
+# Insurance, not a replacement for Supabase Pro point-in-time recovery.
+# Once there are paying customers, both must be on.
+on:
+  schedule:
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Dump
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          pg_dump --no-owner --no-privileges --format=custom "$DATABASE_URL" > facturo-$(date +%F).dump
+      - uses: actions/upload-artifact@v4
+        with:
+          name: facturo-dump-${{ github.run_id }}
+          path: facturo-*.dump
+          retention-days: 30

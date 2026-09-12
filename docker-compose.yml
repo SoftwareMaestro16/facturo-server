@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: facturo
+      POSTGRES_PASSWORD: facturo
+      POSTGRES_DB: facturo
+    ports:
+      - '5432:5432'
+    volumes:
+      - facturo-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U facturo']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://facturo:facturo@db:5432/facturo?schema=public
+    ports:
+      - '3001:3001'
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  facturo-db:

@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # CI never touches a real database; the sandbox providers keep it offline.
+  DATABASE_URL: postgresql://facturo:facturo@localhost:5432/facturo?schema=public
+  JWT_ACCESS_SECRET: ci_access_secret_that_is_long_enough_32
+  JWT_REFRESH_SECRET: ci_refresh_secret_that_is_long_enough_32
+  EFACTURA_PROVIDER: sandbox
+  MAIB_PROVIDER: sandbox
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: facturo
+          POSTGRES_PASSWORD: facturo
+          POSTGRES_DB: facturo
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npx prisma migrate deploy
+      - run: npm run test
+      - run: npm run test:e2e
+      - run: npm run build
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: verify
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -t facturo-server:ci .
