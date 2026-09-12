@@ -25,14 +25,18 @@ is a choice. The config validator refuses to start with `sandbox` in production.
 
 Two things cannot be guessed and must exist first:
 
-1. A signed integration agreement with Serviciul Fiscal de Stat, giving access
-   to the test environment and credentials.
-2. The current **"Ghid de integrare — API"** from the Help section of the
-   e-Factura system. The semi-automated and fully automated flows differ, and
-   the field names are not inferable.
+1. An **API user** created inside SIA "e-Factura". It is a role the company
+   creates itself in the system, not something negotiated with the tax service.
+2. The current **"Ghid de integrare — API"** from the **Help section, top right
+   of the e-Factura system**. The semi-automated and fully automated flows
+   differ, and the field names are not inferable from outside.
 
 A qualified electronic signature certificate is also needed; signing in the
 fully automated flow happens on our side.
+
+The full access procedure, the volume threshold above which STISC's PKI-Server
+signing service becomes relevant, and the CTIF support number are in the
+`efactura-standard` skill.
 
 **Do not fill in endpoints from assumption.** A document assembled from a guess
 is rejected by the platform's validator, and the rejection surfaces at the

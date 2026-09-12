@@ -14,10 +14,11 @@ import type {
 /// The real integration with SIA "e-Factura".
 ///
 /// Deliberately unimplemented until two things exist that cannot be guessed
-/// from outside: a signed integration agreement with SFS, and the current
-/// "Ghid de integrare — API" from the Help section of the e-Factura portal.
-/// Filling this in from assumptions would produce documents the validator
-/// rejects, and the rejection surfaces at the customer, not here.
+/// from outside: an API user created inside SIA "e-Factura", and the current
+/// "Ghid de integrare — API" from the Help section of the system, which carries
+/// the endpoints and the import schemas. Filling this in from assumptions would
+/// produce documents the validator rejects, and the rejection surfaces at the
+/// customer, not here.
 ///
 /// See PLAN.md phase 2 for the checklist, and
 /// .claude/skills/efactura-standard/SKILL.md for what the platform actually

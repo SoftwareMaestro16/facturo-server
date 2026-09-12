@@ -130,19 +130,41 @@ Two integration modes:
 The State Tax Service explicitly recommends API integration for taxpayers
 issuing many invoices daily.
 
-## What is needed before writing `SfsEfacturaProvider`
+## How access is actually obtained
 
-1. A signed integration agreement with the State Tax Service, with test
-   environment access and credentials.
-2. The current **"Ghid de integrare — API"** from the Help section of the
-   system. Also the semi-automated guide, to understand the other mode.
-3. A **qualified electronic signature certificate**. In the fully automated mode
-   signing happens on our side.
+There is **no separate contract to negotiate with the State Tax Service**. The
+process is self-service and shorter than it sounds:
+
+1. The company is registered in SIA "e-Factura" as an economic agent, which any
+   VAT payer already is or can be.
+2. Inside the system, create an **API user**. It is a distinct role that grants
+   access to the system's functionality programmatically, and it is created the
+   same way as any other user, with a Register button.
+3. Download the integration guide from the **"Help" section in the top right of
+   e-Factura**: *"Ghid de integrare — API dezvoltat pentru sistemele
+   informaționale de contabilitate externe"*. The semi-automated guide is worth
+   reading too, to understand the mode Facturo is not using. The import schemas
+   for each document type are in the same place.
+4. Obtain a **qualified electronic signature certificate**. In the fully
+   automated mode, signing happens on our side.
+
+The State Tax Service explicitly recommends API integration for taxpayers
+issuing many invoices daily, so this is a supported path, not an exception.
+
+For very high volume — above roughly 10,000 invoices a month — there is an
+automated signing service, **PKI-Server**, offered by STISC (Serviciul
+Tehnologia Informației și Securitate Cibernetică). Not needed at the start.
+
+Support while integrating: the **CTIF call centre, 022 822222**.
+
+A public copy of the fully-automated guide has been published at
+`ctif.gov.md/sites/default/files/inline-files/Ghid integrare Complet-Automatizat.pdf`,
+but the copy inside the system is the one that is current. Take it from there.
 
 Related but separate government services, each with its own enrolment:
 **MPass** (single sign-on), **MSign** (electronic signature),
 **MConnect** (data exchange between state registries). Access to e-Factura does
-not imply access to any of them.
+not imply access to any of them, and none of them is required for this.
 
 ## Sources
 
@@ -153,7 +175,8 @@ not imply access to any of them.
 - "Ghid de utilizare a SIA e-Factura" and "Manual de operare v3.0", published
   via egov.md and monitorul.fisc.md
 - Centrul de Tehnologii Informaționale în Finanțe (ctif.gov.md) on integrating
-  accounting systems with the current version of e-Factura
+  accounting systems with the current version of e-Factura, and its published
+  copy of the fully-automated integration guide
 
 Several of these are PDFs on government domains. Read them directly before
 implementing; this file is a summary, not a substitute.
