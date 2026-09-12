@@ -1,11 +1,17 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 
-/// Phase 0 fills this in: register, login, refresh with rotation, logout,
-/// change password, and the audit writes that go with each. The rules the
-/// service enforces already live in model/ and are covered by unit tests.
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
+import { SessionService } from './session.service';
+import { TokenService } from './token.service';
+
+/// Secrets are passed per call rather than registered here, because access and
+/// refresh tokens are signed with different keys.
 @Module({
   imports: [JwtModule.register({})],
-  exports: [JwtModule],
+  controllers: [AuthController],
+  providers: [AuthService, SessionService, TokenService],
+  exports: [JwtModule, TokenService],
 })
 export class AuthModule {}

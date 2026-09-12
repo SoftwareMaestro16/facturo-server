@@ -1,0 +1,211 @@
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { hash, verify } from 'argon2';
+
+import { AuditService } from '@/common/audit/audit.service';
+import { PrismaService } from '@/common/prisma/prisma.service';
+import type { AuthenticatedUser } from '@/common/types/authenticated-user';
+import { normalizePhone } from '@/common/utils/phone';
+import type { RequestContext } from '@/common/utils/request-context';
+
+import type { ChangePasswordDto, LoginDto, RegisterDto, SessionResponse } from './dto';
+import { isLocked, registerFailure, registerSuccess } from './model/lockout';
+import { validatePassword } from './model/password-policy';
+import { type IssuedTokens, SessionService } from './session.service';
+
+export interface AuthResult {
+  tokens: IssuedTokens;
+  session: SessionResponse;
+}
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sessions: SessionService,
+    private readonly audit: AuditService,
+  ) {}
+
+  async register(dto: RegisterDto, context: RequestContext): Promise<AuthResult> {
+    this.assertPasswordAllowed(dto.password, { phone: dto.phone });
+
+    const email = normalizeEmail(dto.email);
+    const [existingUser, existingCompany] = await Promise.all([
+      this.prisma.user.findUnique({ where: { email }, select: { id: true } }),
+      this.prisma.company.findUnique({ where: { idno: dto.idno }, select: { id: true } }),
+    ]);
+
+    if (existingUser) {
+      throw new ConflictException({ code: 'email_taken', message: 'Email is already registered' });
+    }
+
+    if (existingCompany) {
+      throw new ConflictException({ code: 'company_exists', message: 'This IDNO is already registered' });
+    }
+
+    const user = await this.createCompanyWithOwner(dto, email);
+
+    this.audit.record({ type: 'REGISTER', userId: user.id, companyId: user.companyId, ...context });
+
+    return {
+      tokens: await this.sessions.issue(user, context),
+      session: toSessionResponse(user),
+    };
+  }
+
+  async login(dto: LoginDto, context: RequestContext): Promise<AuthResult> {
+    const email = normalizeEmail(dto.email);
+    const user = await this.prisma.user.findUnique({ where: { email }, include: { company: true } });
+
+    // One response for an unknown address, a wrong password and a locked
+    // account. Anything else lets someone learn who has an account here.
+    if (!user || !user.isActive || isLocked(user)) {
+      this.audit.record({ type: 'LOGIN_FAILURE', userId: user?.id ?? null, ...context, meta: { email } });
+      throw invalidCredentials();
+    }
+
+    if (!(await verify(user.passwordHash, dto.password))) {
+      await this.registerFailedAttempt(user.id, user, context);
+      throw invalidCredentials();
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { ...registerSuccess(), lastLoginAt: new Date() },
+    });
+
+    this.audit.record({ type: 'LOGIN_SUCCESS', userId: user.id, companyId: user.companyId, ...context });
+
+    return {
+      tokens: await this.sessions.issue(user, context),
+      session: toSessionResponse(user),
+    };
+  }
+
+  async changePassword(
+    current: AuthenticatedUser,
+    dto: ChangePasswordDto,
+    context: RequestContext,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: current.userId } });
+
+    if (!(await verify(user.passwordHash, dto.currentPassword))) {
+      throw invalidCredentials();
+    }
+
+    this.assertPasswordAllowed(dto.newPassword, {
+      phone: user.phone,
+      matchesCurrent: await verify(user.passwordHash, dto.newPassword),
+    });
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: await hash(dto.newPassword) },
+    });
+
+    // Every device signs in again. A password is changed because it may be
+    // known to someone else, and a live session would survive the change.
+    await this.sessions.revokeAllForUser(user.id);
+
+    this.audit.record({
+      type: 'PASSWORD_CHANGED',
+      userId: user.id,
+      companyId: user.companyId,
+      ...context,
+    });
+  }
+
+  async describe(current: AuthenticatedUser): Promise<SessionResponse> {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: current.userId },
+      include: { company: true },
+    });
+
+    return toSessionResponse(user);
+  }
+
+  private assertPasswordAllowed(
+    candidate: string,
+    context: { phone?: string | null; matchesCurrent?: boolean },
+  ): void {
+    const violations = validatePassword(candidate, {
+      phone: context.phone ?? undefined,
+      matchesCurrent: context.matchesCurrent,
+    });
+
+    if (violations.length > 0) {
+      // The first violation is the one the interface points at; the rest are
+      // there so a client can show them all if it wants to.
+      throw new BadRequestException({ code: violations[0], message: violations.join(', ') });
+    }
+  }
+
+  private async registerFailedAttempt(
+    userId: string,
+    state: { failedLoginAttempts: number; lockedUntil: Date | null; companyId: string },
+    context: RequestContext,
+  ): Promise<void> {
+    const next = registerFailure(state);
+
+    await this.prisma.user.update({ where: { id: userId }, data: next });
+
+    this.audit.record({
+      type: next.lockedUntil !== state.lockedUntil ? 'ACCOUNT_LOCKED' : 'LOGIN_FAILURE',
+      userId,
+      companyId: state.companyId,
+      ...context,
+    });
+  }
+
+  private async createCompanyWithOwner(dto: RegisterDto, email: string) {
+    return this.prisma.user.create({
+      data: {
+        email,
+        phone: dto.phone ? normalizePhone(dto.phone) : null,
+        fullName: dto.fullName,
+        passwordHash: await hash(dto.password),
+        role: 'OWNER',
+        company: {
+          create: {
+            name: dto.companyName,
+            idno: dto.idno,
+            vatCode: dto.vatCode ?? null,
+            isVatPayer: Boolean(dto.vatCode),
+            locale: dto.locale ?? 'ro',
+            // A default series so the first invoice has a number without the
+            // customer having to visit settings first.
+            numberSeries: { create: { series: 'FAC', isDefault: true } },
+          },
+        },
+      },
+      include: { company: true },
+    });
+  }
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function invalidCredentials(): UnauthorizedException {
+  return new UnauthorizedException({ code: 'invalid_credentials', message: 'Invalid credentials' });
+}
+
+function toSessionResponse(user: {
+  id: string;
+  companyId: string;
+  email: string;
+  fullName: string;
+  role: SessionResponse['role'];
+  company: { name: string; locale: string; vatCode: string | null };
+}): SessionResponse {
+  return {
+    userId: user.id,
+    companyId: user.companyId,
+    email: user.email,
+    fullName: user.fullName,
+    role: user.role,
+    companyName: user.company.name,
+    locale: user.company.locale,
+    vatCode: user.company.vatCode,
+  };
+}

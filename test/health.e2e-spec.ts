@@ -1,19 +1,16 @@
-import { Test } from '@nestjs/testing';
-import type { INestApplication } from '@nestjs/common';
 import type { Server } from 'node:http';
+
+import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { AppModule } from '../src/app.module';
+import { body, createTestApp } from './helpers/app';
 
 describe('health', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api');
-    await app.init();
+    ({ app } = await createTestApp());
   });
 
   afterAll(async () => {
@@ -25,6 +22,6 @@ describe('health', () => {
       .get('/api/health')
       .expect(200);
 
-    expect(response.body).toMatchObject({ status: 'ok' });
+    expect(body(response)).toMatchObject({ status: 'ok' });
   });
 });
