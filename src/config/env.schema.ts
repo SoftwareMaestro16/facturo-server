@@ -38,6 +38,8 @@ export class EnvSchema {
   COOKIE_DOMAIN = 'localhost';
 
   @IsOptional() @IsString() GOOGLE_CLIENT_ID?: string;
+  /// Exchanges the one-time code from the sign-in popup. Never sent to a browser.
+  @IsOptional() @IsString() GOOGLE_CLIENT_SECRET?: string;
 
   @IsIn(['sandbox', 'sfs'])
   EFACTURA_PROVIDER: 'sandbox' | 'sfs' = 'sandbox';

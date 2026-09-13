@@ -5,18 +5,13 @@ import { IsString, Length } from 'class-validator';
 /// for the caller to choose between logging in and registering: one DTO,
 /// one endpoint.
 export class GoogleAuthDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'One-time authorization code returned by the Google sign-in popup' })
   @IsString()
-  @Length(1, 8192)
-  credential!: string;
+  @Length(1, 2048)
+  code!: string;
 
   @ApiProperty({ example: '2026-09-13', description: 'Edition of the Terms shown beside the sign-in button' })
   @IsString()
   @Length(1, 32)
   termsVersion!: string;
-}
-
-export class GoogleChallengeResponse {
-  @ApiProperty()
-  nonce!: string;
 }
