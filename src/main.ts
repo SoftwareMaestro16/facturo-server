@@ -13,7 +13,9 @@ import { aiLimiter, authLimiter, generalLimiter } from './common/rate-limit';
 import { TypedConfigService } from './config/typed-config.service';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
+  // rawBody: billing.controller.ts verifies the maib callback signature over
+  // the exact bytes received, not Nest's parsed-and-reserialised body.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true, rawBody: true });
   const config = app.get(TypedConfigService);
 
   // A pure JSON API serves no markup, so the content policy has nothing to guard.

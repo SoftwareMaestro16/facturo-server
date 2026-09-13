@@ -7,6 +7,7 @@ import { PrismaService } from '@/common/prisma/prisma.service';
 import type { AccessTokenPayload } from '@/common/types/authenticated-user';
 import { normalizePhone } from '@/common/utils/phone';
 import type { RequestContext } from '@/common/utils/request-context';
+import { addMonth } from '@/modules/billing/model/subscription-lifecycle';
 
 import type { ChangePasswordDto, LoginDto, RegisterDto, SessionResponse } from './dto';
 import type { GoogleIdentity } from './google.service';
@@ -281,6 +282,7 @@ export class AuthService {
           // A default series so the first invoice has a number without the
           // customer having to visit settings first.
           numberSeries: { create: { series: 'FAC', isDefault: true } },
+          subscription: { create: { plan: 'FREE', currentPeriodEnd: addMonth(new Date()) } },
         },
       });
 

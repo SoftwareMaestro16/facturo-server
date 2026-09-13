@@ -3,6 +3,7 @@ import type { UserRole } from '@prisma/client';
 
 import { PrismaService } from '@/common/prisma/prisma.service';
 import { normalizePhone } from '@/common/utils/phone';
+import { addMonth } from '@/modules/billing/model/subscription-lifecycle';
 
 import type { CompanyResponse, CompanySummary, CreateCompanyDto, UpdateCompanyDto } from './dto';
 
@@ -69,6 +70,7 @@ export class CompaniesService {
           isVatPayer: Boolean(dto.vatCode),
           locale: dto.locale ?? 'ro',
           numberSeries: { create: { series: 'FAC', isDefault: true } },
+          subscription: { create: { plan: 'FREE', currentPeriodEnd: addMonth(new Date()) } },
         },
       });
 

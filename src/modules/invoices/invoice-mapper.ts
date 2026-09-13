@@ -11,6 +11,7 @@ type InvoiceRow = {
   status: string;
   cycle: string;
   statusReason: string | null;
+  disputedAt: Date | null;
   series: string;
   number: number;
   issueDate: Date;
@@ -53,6 +54,7 @@ export function toInvoiceResponse(invoice: InvoiceRow): InvoiceResponse {
     status: invoice.status,
     cycle: invoice.cycle,
     statusReason: invoice.statusReason,
+    disputedAt: invoice.disputedAt ? invoice.disputedAt.toISOString() : null,
     series: invoice.series,
     number: invoice.number,
     issueDate: dateOnly(invoice.issueDate),

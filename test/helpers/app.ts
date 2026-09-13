@@ -22,7 +22,10 @@ export interface TestApp {
 export async function createTestApp(): Promise<TestApp> {
   assertTestDatabase();
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-  const app = moduleRef.createNestApplication({ logger: false });
+  // rawBody: the billing callback verifies a signature over the exact bytes
+  // received — see main.ts and billing.controller.ts — so a test exercising
+  // that endpoint needs the same option production boots with.
+  const app = moduleRef.createNestApplication({ logger: false, rawBody: true });
 
   app.use(cookieParser());
   app.setGlobalPrefix('api');

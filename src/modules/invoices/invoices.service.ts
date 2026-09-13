@@ -23,19 +23,7 @@ export class InvoicesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(companyId: string, query: InvoiceQuery): Promise<InvoicePage> {
-    const where: Prisma.InvoiceWhereInput = {
-      companyId,
-      ...(query.direction ? { direction: query.direction } : {}),
-      ...(query.status ? { status: query.status as Prisma.InvoiceWhereInput['status'] } : {}),
-      ...(query.search
-        ? {
-            OR: [
-              { counterpartyName: { contains: query.search, mode: 'insensitive' } },
-              { series: { contains: query.search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
-    };
+    const where = listWhere(companyId, query);
 
     const [rows, total] = await Promise.all([
       this.prisma.invoice.findMany({
@@ -48,21 +36,7 @@ export class InvoicesService {
       this.prisma.invoice.count({ where }),
     ]);
 
-    return {
-      items: rows.map((row) => ({
-        id: row.id,
-        direction: row.direction,
-        status: row.status,
-        cycle: row.cycle,
-        series: row.series,
-        number: row.number,
-        issueDate: dateOnly(row.issueDate),
-        counterpartyName: row.counterpartyName,
-        total: row.total.toFixed(2),
-        currency: row.currency,
-      })),
-      meta: pageMeta(query, total),
-    };
+    return { items: rows.map(toListItem), meta: pageMeta(query, total) };
   }
 
   async summary(companyId: string): Promise<InvoiceSummaryResponse> {
@@ -257,6 +231,38 @@ function toLineInput(line: { quantity: string; priceNet: string; vatRate: string
   return { quantity: line.quantity, priceNet: line.priceNet, vatRate: line.vatRate };
 }
 
+function listWhere(companyId: string, query: InvoiceQuery): Prisma.InvoiceWhereInput {
+  return {
+    companyId,
+    ...(query.direction ? { direction: query.direction } : {}),
+    ...(query.status ? { status: query.status as Prisma.InvoiceWhereInput['status'] } : {}),
+    ...(query.search
+      ? {
+          OR: [
+            { counterpartyName: { contains: query.search, mode: 'insensitive' } },
+            { series: { contains: query.search, mode: 'insensitive' } },
+          ],
+        }
+      : {}),
+  };
+}
+
+function toListItem(row: Prisma.InvoiceGetPayload<{ select: typeof LIST_SELECTION }>) {
+  return {
+    id: row.id,
+    direction: row.direction,
+    status: row.status,
+    disputedAt: row.disputedAt ? row.disputedAt.toISOString() : null,
+    cycle: row.cycle,
+    series: row.series,
+    number: row.number,
+    issueDate: dateOnly(row.issueDate),
+    counterpartyName: row.counterpartyName,
+    total: row.total.toFixed(2),
+    currency: row.currency,
+  };
+}
+
 function notFound(): NotFoundException {
   return new NotFoundException({ code: 'invoice_not_found', message: 'Invoice not found' });
 }
@@ -265,6 +271,7 @@ const LIST_SELECTION = {
   id: true,
   direction: true,
   status: true,
+  disputedAt: true,
   cycle: true,
   series: true,
   number: true,

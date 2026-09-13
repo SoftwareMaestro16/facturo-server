@@ -132,6 +132,8 @@ export class InvoiceResponse {
   status!: string;
   @ApiProperty({ enum: ['SHORT', 'LONG'] }) cycle!: string;
   @ApiPropertyOptional() statusReason!: string | null;
+  @ApiPropertyOptional({ description: 'Set when the buyer disputed an incoming document' })
+  disputedAt!: string | null;
   @ApiProperty() series!: string;
   @ApiProperty() number!: number;
   @ApiProperty() issueDate!: string;
@@ -158,6 +160,7 @@ export class InvoiceListItemResponse {
   @ApiProperty() id!: string;
   @ApiProperty({ enum: ['OUTGOING', 'INCOMING'] }) direction!: string;
   @ApiProperty() status!: string;
+  @ApiPropertyOptional() disputedAt!: string | null;
   @ApiProperty() cycle!: string;
   @ApiProperty() series!: string;
   @ApiProperty() number!: number;

@@ -11,6 +11,7 @@ import type { Prisma } from '@prisma/client';
 
 import { AuditService } from '@/common/audit/audit.service';
 import { PrismaService } from '@/common/prisma/prisma.service';
+import { BillingService } from '@/modules/billing/billing.service';
 
 import { buildInvoiceXml } from './model/efactura-xml';
 import { explain } from './model/error-catalogue';
@@ -22,10 +23,13 @@ import {
   type SubmissionResult,
 } from './providers/efactura-provider';
 
-/// Owns everything that touches the platform: the submission itself, storing
-/// evidence, and turning the platform's answer into a stable code the interface
-/// can translate. Retries on top of this live in a scheduled sweeper (added
-/// with the real provider); the failure classification is already correct.
+/// Owns submitting a document to the platform: building the XML, storing
+/// evidence, and turning the platform's answer into a stable code the
+/// interface can translate. Retries on top of this live in a scheduled
+/// sweeper (added with the real provider); the failure classification is
+/// already correct. Pulling and reviewing documents the company received
+/// lives in IncomingDocumentsService instead — a different direction across
+/// the same boundary, with different rules.
 @Injectable()
 export class EfacturaService {
   private readonly logger = new Logger(EfacturaService.name);
@@ -33,6 +37,7 @@ export class EfacturaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly billing: BillingService,
     @Inject(forwardRef(() => EFACTURA_PROVIDER)) private readonly provider: EfacturaProvider,
   ) {}
 
@@ -58,27 +63,22 @@ export class EfacturaService {
       });
     }
 
-    const attempt = (await this.prisma.efacturaSubmission.count({ where: { invoiceId } })) + 1;
-    const document = toDocument(invoice);
-    const requestXml = buildInvoiceXml(document);
+    // Checked here, not at draft creation: a draft that is never signed cost
+    // the company nothing, so quota is spent at the moment it is issued.
+    await this.billing.assertCanIssueInvoice(companyId);
 
-    const submission = await this.prisma.efacturaSubmission.create({
-      data: {
-        invoiceId,
-        attempt,
-        state: 'IN_FLIGHT',
-        requestXml,
-      },
-    });
+    const document = toDocument(invoice);
+    const submission = await this.startSubmission(invoiceId, document);
 
     try {
       const result = await this.provider.submit(document);
       await this.applySubmissionResult(invoice.id, submission.id, result);
+      await this.billing.recordInvoiceIssued(companyId);
       this.audit.record({
         type: 'INVOICE_SENT',
         userId: null,
         companyId,
-        meta: { invoiceId, externalId: result.externalId, attempt },
+        meta: { invoiceId, externalId: result.externalId, attempt: submission.attempt },
       });
 
       return 'SIGNED';
@@ -86,6 +86,20 @@ export class EfacturaService {
       await this.applySubmissionFailure(invoice.id, submission.id, invoice.status, error);
       throw new BadRequestException({ code: extractCode(error), message: 'Submission failed' });
     }
+  }
+
+  private async startSubmission(
+    invoiceId: string,
+    document: EfacturaDocument,
+  ): Promise<{ id: string; attempt: number }> {
+    const attempt = (await this.prisma.efacturaSubmission.count({ where: { invoiceId } })) + 1;
+    const requestXml = buildInvoiceXml(document);
+
+    const submission = await this.prisma.efacturaSubmission.create({
+      data: { invoiceId, attempt, state: 'IN_FLIGHT', requestXml },
+    });
+
+    return { id: submission.id, attempt };
   }
 
   private async applySubmissionFailure(

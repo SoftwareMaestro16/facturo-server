@@ -354,6 +354,16 @@ model Invoice {
   finishedAt     DateTime?
   cancelledAt    DateTime?
 
+  /// The exchanged XML for an INCOMING document, kept as evidence for the
+  /// six-year retention rule — an outgoing document's evidence already lives
+  /// in EfacturaSubmission instead, so this stays null there.
+  rawXml String?
+  /// Set when the buyer marks an INCOMING document as disputed, with the human
+  /// reason in `statusReason`. Deliberately not a `status` value: the platform
+  /// has no "the buyer refuses this" state to mirror, and `status` here must
+  /// only ever say what the platform itself reports.
+  disputedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
