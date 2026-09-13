@@ -4,6 +4,12 @@ This package is deliberately not registered in AppModule. It performs no OpenAI
 requests and adds no public endpoint. The registry publishes only implemented
 handlers; the initial tool list is empty.
 
+`createRejectionTool(reader)` now supplies a catalogue-only handler with localized
+explanations and a mandatory review result. The injected reader must authorize
+membership and fetch by company and resource ID. The handler rejects mismatched
+resources and does not expose raw unknown error text. It is not wired to HTTP or
+an OpenAI model; OCR and spreadsheet handlers remain unimplemented.
+
 Contracts cover receipt extraction, rejection explanations and spreadsheet column
 mapping. Each consumes an opaque resource ID and locale, returning a proposal for
 human review. User/company identity comes exclusively from the authenticated

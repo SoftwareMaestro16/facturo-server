@@ -45,7 +45,8 @@ export function parseToolArguments(raw: string): ToolArguments {
     Object.keys(args).length !== 2 ||
     typeof args.resourceId !== 'string' ||
     !/^[a-zA-Z0-9_-]{1,128}$/.test(args.resourceId) ||
-    !['ru', 'ro'].includes(String(args.locale))
+    typeof args.locale !== 'string' ||
+    !['ru', 'ro'].includes(args.locale)
   ) {
     throw new Error('ai_invalid_arguments');
   }

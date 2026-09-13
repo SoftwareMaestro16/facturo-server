@@ -20,6 +20,7 @@ export interface TestApp {
 /// limiter before the account ever locked, and it is the lockout that is under
 /// test here. The limiters are a separate concern with their own configuration.
 export async function createTestApp(): Promise<TestApp> {
+  assertTestDatabase();
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication({ logger: false });
 
@@ -41,6 +42,7 @@ export async function createTestApp(): Promise<TestApp> {
 
 /// Order matters: children before parents, or the foreign keys refuse.
 export async function resetDatabase(prisma: PrismaService): Promise<void> {
+  assertTestDatabase();
   await prisma.auditEvent.deleteMany();
   await prisma.session.deleteMany();
   await prisma.efacturaSubmission.deleteMany();
@@ -52,8 +54,22 @@ export async function resetDatabase(prisma: PrismaService): Promise<void> {
   await prisma.numberSeries.deleteMany();
   await prisma.product.deleteMany();
   await prisma.counterparty.deleteMany();
+  await prisma.membership.deleteMany();
   await prisma.user.deleteMany();
   await prisma.company.deleteMany();
+}
+
+function assertTestDatabase(): void {
+  const url = new URL(process.env.DATABASE_URL ?? 'postgresql://invalid/invalid');
+  if (
+    process.env.NODE_ENV !== 'test' ||
+    !['127.0.0.1', 'localhost'].includes(url.hostname) ||
+    url.pathname !== '/facturo_test'
+  ) {
+    throw new Error(
+      'E2E requires NODE_ENV=test and a local facturo_test database; refusing destructive cleanup',
+    );
+  }
 }
 
 /// Pulls one cookie out of a Set-Cookie header list.
