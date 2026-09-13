@@ -39,6 +39,12 @@ model Company {
   /// Interface language of the account: "ro" or "ru".
   locale    String  @default("ro")
 
+  /// The AI assistant sends typed text and catalogue prices to an outside
+  /// provider, so it stays off until the owner turns it on. Null means off;
+  /// the timestamp and the person are the record of that decision.
+  aiEnabledAt       DateTime?
+  aiEnabledByUserId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -53,6 +59,7 @@ model Company {
   importJobs     ImportJob[]
   auditEvents    AuditEvent[]
   numberSeries   NumberSeries[]
+  aiRequests     AiRequest[]
 
   @@index([createdAt])
 }
@@ -475,6 +482,31 @@ model Payment {
   paidAt    DateTime?
 
   @@index([companyId, status, createdAt])
+}
+
+// ─── AI assistant ────────────────────────────────────────────────────────────
+
+enum AiRequestKind {
+  INVOICE_DRAFT
+}
+
+/// One row per call to the AI provider. The daily limit is counted from here,
+/// and it is the evidence of what was sent on whose behalf and at what cost.
+/// The typed text and the answer are deliberately not stored.
+model AiRequest {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId    String
+
+  kind         AiRequestKind
+  succeeded    Boolean
+  inputTokens  Int           @default(0)
+  outputTokens Int           @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId, createdAt])
 }
 
 // ─── Bulk import ─────────────────────────────────────────────────────────────

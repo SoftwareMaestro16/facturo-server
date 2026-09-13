@@ -9,7 +9,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 
 import { AppModule } from './app.module';
-import { authLimiter, generalLimiter } from './common/rate-limit';
+import { aiLimiter, authLimiter, generalLimiter } from './common/rate-limit';
 import { TypedConfigService } from './config/typed-config.service';
 
 async function bootstrap(): Promise<void> {
@@ -31,6 +31,7 @@ async function bootstrap(): Promise<void> {
 
   app.use('/api', generalLimiter(config));
   app.use(['/api/auth/login', '/api/auth/register', '/api/auth/google'], authLimiter(config));
+  app.use('/api/ai/invoice-draft', aiLimiter());
 
   app.useGlobalPipes(
     new ValidationPipe({

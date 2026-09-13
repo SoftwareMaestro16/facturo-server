@@ -63,6 +63,17 @@ export class EnvSchema {
   @IsOptional() @IsString() MAIB_SUCCESS_URL?: string;
   @IsOptional() @IsString() MAIB_FAIL_URL?: string;
 
+  /// "sandbox" answers from a local heuristic and sends nothing anywhere;
+  /// "openai" calls the Responses API and needs OPENAI_API_KEY.
+  @IsIn(['sandbox', 'openai'])
+  AI_PROVIDER: 'sandbox' | 'openai' = 'sandbox';
+
+  @IsOptional() @IsString() OPENAI_API_KEY?: string;
+  @IsString() OPENAI_MODEL = 'gpt-5.6-luna';
+  @toInt() @IsInt() OPENAI_TIMEOUT_MS = 20000;
+  /// Calls per company per UTC day. Bounds both cost and the damage of a leaked session.
+  @toInt() @IsInt() AI_DAILY_LIMIT = 30;
+
   @IsOptional() @IsString() SENTRY_DSN?: string;
   @IsString() LOG_LEVEL = 'debug';
 
@@ -104,5 +115,9 @@ function assertProductionSecrets(env: EnvSchema): void {
 
   if (env.EFACTURA_PROVIDER === 'sandbox') {
     throw new Error('Refusing to start: the sandbox e-Factura provider must never run in production.');
+  }
+
+  if (env.AI_PROVIDER === 'openai' && !env.OPENAI_API_KEY) {
+    throw new Error('Refusing to start: AI_PROVIDER=openai needs OPENAI_API_KEY.');
   }
 }

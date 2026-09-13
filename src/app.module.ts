@@ -8,6 +8,7 @@ import { RolesGuard } from './common/guards/roles.guard';
 import { DecimalSerializerInterceptor } from './common/interceptors/decimal-serializer.interceptor';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { AppConfigModule } from './config/config.module';
+import { AiModule } from './modules/ai/ai.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { CompaniesModule } from './modules/companies/companies.module';
@@ -31,6 +32,7 @@ import { ProductsModule } from './modules/products/products.module';
     EfacturaModule,
     BillingModule,
     ImportsModule,
+    AiModule,
     HealthModule,
   ],
   providers: [

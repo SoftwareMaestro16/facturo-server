@@ -19,6 +19,18 @@ export function generalLimiter(config: TypedConfigService): RateLimitRequestHand
   });
 }
 
+/// The assistant costs money per call and is the endpoint a stolen session would
+/// hammer. The per-company daily limit bounds the total; this bounds bursts.
+export function aiLimiter(): RateLimitRequestHandler {
+  return rateLimit({
+    windowMs: 60 * 1000,
+    limit: 10,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { statusCode: 429, code: 'too_many_requests', message: 'Too many assistant requests' },
+  });
+}
+
 /// Login and registration get their own, much tighter budget: these are the
 /// endpoints worth guessing against, and the general limit is far too generous
 /// to slow a password attack down.

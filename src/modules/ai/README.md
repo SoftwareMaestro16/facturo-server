@@ -1,33 +1,45 @@
-# AI tools foundation
+# AI assistant
 
-This package is deliberately not registered in AppModule. It performs no OpenAI
-requests and adds no public endpoint. The registry publishes only implemented
-handlers; the initial tool list is empty.
+## What is wired
 
-`createRejectionTool(reader)` now supplies a catalogue-only handler with localized
-explanations and a mandatory review result. The injected reader must authorize
-membership and fetch by company and resource ID. The handler rejects mismatched
-resources and does not expose raw unknown error text. It is not wired to HTTP or
-an OpenAI model; OCR and spreadsheet handlers remain unimplemented.
+`POST /api/ai/invoice-draft` turns a short description of a sale ("2 hours of
+consulting at 500 for Atelier Nord") into a proposal for the invoice form. It
+saves nothing and sends nothing: the person reviews the form and saves the
+invoice through the normal invoices endpoint.
 
-Contracts cover receipt extraction, rejection explanations and spreadsheet column
-mapping. Each consumes an opaque resource ID and locale, returning a proposal for
-human review. User/company identity comes exclusively from the authenticated
-server context. Every future handler must query resources with companyId, reject
-inaccessible uploads, and avoid exposing raw storage paths or secrets.
+- **Off by default.** `Company.aiEnabledAt` is null until the owner turns it on
+  (`PUT /api/ai/settings`, OWNER only). The timestamp and `aiEnabledByUserId`
+  are the record of that decision.
+- **What leaves the server:** the typed text and the company's own catalogue
+  (up to 100 product names, net prices, VAT rates). Never the buyer directory,
+  documents, bank details or identity data. Buyers are matched on the server
+  (`model/matching.ts`).
+- **Provider boundary:** `providers/ai-provider.ts`. `AI_PROVIDER=sandbox` uses a
+  local heuristic and sends nothing anywhere; `AI_PROVIDER=openai` calls the
+  Responses API with `store: false`, a strict JSON schema, a timeout and a
+  bounded output. Boot refuses `openai` without `OPENAI_API_KEY` in production,
+  and the sandbox is reported as unavailable in production.
+- **Untrusted output:** `model/invoice-draft.ts` re-checks every field — lengths,
+  decimal formats, the VAT rate list, the line cap — and converts VAT-inclusive
+  prices to net in integer minor units. A prompt injection can at worst produce
+  a wrong proposal that a person sees before saving.
+- **Cost and abuse limits:** `AI_DAILY_LIMIT` calls per company per UTC day,
+  counted from `AiRequest` (attempts, not only successes), plus a burst limiter
+  on the route. `AiRequest` stores tokens and outcome, never the text or answer.
+- **Errors** reach the client as stable codes: `ai_disabled`, `ai_quota_exceeded`,
+  `ai_unavailable`, `ai_busy`, `ai_refused`, `ai_failed`, `ai_nothing_found`.
 
-Next implementation steps:
+## Not wired yet
 
-1. Add owned uploads with size/type validation and retention policy.
-2. Implement handlers with bounded outputs: decimal money strings, nullable unknown
-   fields, source evidence and confidence. Use the existing e-Factura catalogue
-   before requesting a model explanation.
-3. Add a server-only Responses adapter, explicit configured model/API key, timeouts,
-   per-company quotas, maximum tool rounds, store:false and redacted error logs.
-4. Validate model output, then show a review screen. Existing domain services handle
-   user-confirmed writes; tools never submit invoices or initiate payments.
-5. Test cross-company access, prompt injection in uploaded content, malformed model
-   output, provider failures and cost limits before enabling the module.
+`model/tool-registry.ts` and `model/rejection-tool.ts` remain the foundation for
+tool calling (rejection explanations, receipt extraction, spreadsheet mapping).
+Before exposing any of them: owned uploads with size/type validation, tenancy
+checks inside every handler, and the same review-before-write rule.
 
-Function contract format follows the official OpenAI documentation:
-https://developers.openai.com/api/docs/guides/function-calling
+## Before commercial launch
+
+Sign the provider's data processing terms, confirm the transfer safeguards
+required by Moldovan law for processing in the US, and keep the privacy policy's
+AI section in step with what is actually sent.
+
+Contract format: https://developers.openai.com/api/docs/guides/structured-outputs
