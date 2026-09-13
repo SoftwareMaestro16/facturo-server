@@ -1,10 +1,11 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AuditService } from '@/common/audit/audit.service';
 import type { PrismaService } from '@/common/prisma/prisma.service';
 
 import { AuthService } from './auth.service';
+import { CURRENT_TERMS_VERSION } from './model/terms';
 import type { SessionService } from './session.service';
 
 const context = { ip: null, userAgent: null };
@@ -34,7 +35,7 @@ function setup(userBySubject: unknown = null, userByEmail: unknown = null) {
 describe('Google identity', () => {
   it('looks up by the immutable subject first', async () => {
     const { service, prisma } = setup();
-    await service.googleAuth(identity, context);
+    await service.googleAuth(identity, context, CURRENT_TERMS_VERSION);
     expect(prisma.user.findUnique).toHaveBeenCalledWith({
       where: { googleSubject: identity.subject },
       include: { company: true },
@@ -46,7 +47,9 @@ describe('Google identity', () => {
     { isActive: true, lockedUntil: new Date('2999-01-01') },
   ])('does not bypass disabled or locked accounts', async (state) => {
     const { service, sessions } = setup({ id: 'user', companyId: null, company: null, ...state });
-    await expect(service.googleAuth(identity, context)).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.googleAuth(identity, context, CURRENT_TERMS_VERSION)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
     expect(sessions.issue).not.toHaveBeenCalled();
   });
 
@@ -59,7 +62,7 @@ describe('Google identity', () => {
       company: null,
     };
     const { service, prisma, sessions } = setup(null, existing);
-    await service.googleAuth(identity, context);
+    await service.googleAuth(identity, context, CURRENT_TERMS_VERSION);
     expect(prisma.user.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: existing.id },
@@ -69,9 +72,27 @@ describe('Google identity', () => {
     expect(sessions.issue).toHaveBeenCalled();
   });
 
+  it('refuses a sign-in from a page that showed an older edition of the Terms', async () => {
+    const { service, sessions } = setup();
+    await expect(service.googleAuth(identity, context, '2020-01-01')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(sessions.issue).not.toHaveBeenCalled();
+  });
+
+  it('records which edition of the Terms a new identity accepted', async () => {
+    const { service, prisma } = setup(null, null);
+    await service.googleAuth(identity, context, CURRENT_TERMS_VERSION);
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ termsVersion: CURRENT_TERMS_VERSION }) as unknown,
+      }),
+    );
+  });
+
   it('creates a bare, company-less identity when nothing matches', async () => {
     const { service, prisma, sessions } = setup(null, null);
-    await service.googleAuth(identity, context);
+    await service.googleAuth(identity, context, CURRENT_TERMS_VERSION);
     expect(prisma.user.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ passwordHash: null, googleSubject: identity.subject }) as unknown,

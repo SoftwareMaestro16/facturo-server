@@ -5,6 +5,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { GoogleController } from './google.controller';
 import { GoogleService } from './google.service';
+import { PersonalDataService } from './personal-data.service';
 import { SessionService } from './session.service';
 import { TokenService } from './token.service';
 
@@ -13,7 +14,7 @@ import { TokenService } from './token.service';
 @Module({
   imports: [JwtModule.register({})],
   controllers: [AuthController, GoogleController],
-  providers: [AuthService, SessionService, TokenService, GoogleService],
+  providers: [AuthService, SessionService, TokenService, GoogleService, PersonalDataService],
   exports: [JwtModule, TokenService, SessionService, AuthService],
 })
 export class AuthModule {}

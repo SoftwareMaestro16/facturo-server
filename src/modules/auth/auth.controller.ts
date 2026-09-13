@@ -31,6 +31,8 @@ import { TypedConfigService } from '@/config/typed-config.service';
 import { AuthService } from './auth.service';
 import { clearAuthCookies, readRefreshCookie, setAuthCookies } from './cookies';
 import { ChangePasswordDto, LoginDto, RegisterDto, SessionResponse } from './dto';
+import { PersonalDataExport } from './dto/personal-data.dto';
+import { PersonalDataService } from './personal-data.service';
 import { SessionService } from './session.service';
 import { TokenService } from './token.service';
 
@@ -44,6 +46,7 @@ export class AuthController {
     private readonly sessions: SessionService,
     private readonly tokens: TokenService,
     private readonly config: TypedConfigService,
+    private readonly personalData: PersonalDataService,
   ) {}
 
   @Public()
@@ -121,6 +124,20 @@ export class AuthController {
   @ApiOkResponse({ type: SessionResponse })
   describe(@CurrentIdentity() identity: AccessTokenPayload): Promise<SessionResponse> {
     return this.auth.describe(identity);
+  }
+
+  /// The person's own account data, as a file they can keep. Declared as its
+  /// own path under `me`, so it never collides with the session description.
+  @ApiCookieAuth()
+  @AllowNoCompany()
+  @Get('me/export')
+  @ApiOkResponse({ type: PersonalDataExport })
+  exportPersonalData(
+    @CurrentIdentity() identity: AccessTokenPayload,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<PersonalDataExport> {
+    response.setHeader('Cache-Control', 'no-store');
+    return this.personalData.export(identity.userId);
   }
 
   @ApiCookieAuth()

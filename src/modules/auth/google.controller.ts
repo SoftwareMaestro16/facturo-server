@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common';
-import { ApiOkResponse, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import { ApiBadRequestResponse, ApiOkResponse, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 
 import { Public } from '@/common/decorators/public.decorator';
@@ -48,13 +48,14 @@ export class GoogleController {
   @HttpCode(200)
   @ApiOkResponse({ type: SessionResponse })
   @ApiUnauthorizedResponse({ description: 'google_invalid' })
+  @ApiBadRequestResponse({ description: 'terms_outdated' })
   async authenticate(
     @Body() dto: GoogleAuthDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<SessionResponse> {
     const identity = await this.google.verify(dto.credential, this.readNonce(request));
-    const result = await this.auth.googleAuth(identity, readRequestContext(request));
+    const result = await this.auth.googleAuth(identity, readRequestContext(request), dto.termsVersion);
     response.clearCookie(NONCE_COOKIE, { path: '/api/auth/google' });
     setAuthCookies(response, result.tokens, this.config, this.tokens);
     return result.session;

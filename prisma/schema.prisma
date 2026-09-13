@@ -91,6 +91,11 @@ model User {
   lockedUntil         DateTime?
   lastLoginAt         DateTime?
 
+  /// Which edition of the Terms and Privacy Policy this person accepted, and
+  /// when. Text beside a button is not a record; this is.
+  termsVersion    String?
+  termsAcceptedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -12,6 +12,7 @@ import type { ChangePasswordDto, LoginDto, RegisterDto, SessionResponse } from '
 import type { GoogleIdentity } from './google.service';
 import { isLocked, registerFailure, registerSuccess } from './model/lockout';
 import { validatePassword } from './model/password-policy';
+import { isCurrentTermsVersion, needsTermsRecord } from './model/terms';
 import { type IssuedTokens, SessionService } from './session.service';
 
 export interface AuthResult {
@@ -29,6 +30,7 @@ interface UserWithCompany {
   isActive: boolean;
   failedLoginAttempts: number;
   lockedUntil: Date | null;
+  termsVersion?: string | null;
   company: { name: string; locale: string; vatCode: string | null } | null;
 }
 
@@ -99,7 +101,20 @@ export class AuthService {
   /// One endpoint for both login and registration: Google already tells us
   /// whether this person exists. A brand-new identity gets no company yet —
   /// JwtAuthGuard blocks everything except the routes that create or join one.
-  async googleAuth(identity: GoogleIdentity, context: RequestContext): Promise<AuthResult> {
+  async googleAuth(
+    identity: GoogleIdentity,
+    context: RequestContext,
+    termsVersion: string,
+  ): Promise<AuthResult> {
+    // A tab left open across a new edition showed text that is no longer
+    // current. Accepting it would record agreement to words nobody can see.
+    if (!isCurrentTermsVersion(termsVersion)) {
+      throw new BadRequestException({
+        code: 'terms_outdated',
+        message: 'The sign-in page showed an older edition of the Terms',
+      });
+    }
+
     const existing = await this.findGoogleUser(identity);
     const isNewIdentity = existing === undefined;
     const user = existing ?? (await this.createGoogleUser(identity));
@@ -108,9 +123,14 @@ export class AuthService {
       throw invalidCredentials();
     }
 
+    const now = new Date();
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { ...registerSuccess(), lastLoginAt: new Date() },
+      data: {
+        ...registerSuccess(),
+        lastLoginAt: now,
+        ...(needsTermsRecord(user.termsVersion) ? { termsVersion, termsAcceptedAt: now } : {}),
+      },
     });
 
     this.audit.record({
@@ -118,6 +138,7 @@ export class AuthService {
       userId: user.id,
       companyId: user.companyId,
       ...context,
+      meta: { termsVersion },
     });
 
     return {

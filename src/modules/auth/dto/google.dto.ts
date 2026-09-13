@@ -9,6 +9,11 @@ export class GoogleAuthDto {
   @IsString()
   @Length(1, 8192)
   credential!: string;
+
+  @ApiProperty({ example: '2026-09-13', description: 'Edition of the Terms shown beside the sign-in button' })
+  @IsString()
+  @Length(1, 32)
+  termsVersion!: string;
 }
 
 export class GoogleChallengeResponse {
