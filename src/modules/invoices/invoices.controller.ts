@@ -27,6 +27,7 @@ import type { AuthenticatedUser } from '@/common/types/authenticated-user';
 import { CreateInvoiceDto, InvoicePage, InvoiceQuery, InvoiceResponse, UpdateInvoiceDto } from './dto';
 import { InvoicesService } from './invoices.service';
 import { PreviewInvoiceDto, PreviewInvoiceResponse } from './dto/preview.dto';
+import { InvoiceSummaryResponse } from './dto/summary.dto';
 
 @ApiTags('invoices')
 @ApiCookieAuth()
@@ -38,6 +39,13 @@ export class InvoicesController {
   @ApiOkResponse({ type: InvoicePage })
   list(@CurrentUser() user: AuthenticatedUser, @Query() query: InvoiceQuery): Promise<InvoicePage> {
     return this.invoices.list(user.companyId, query);
+  }
+
+  /// Declared before `:id`, otherwise "summary" is read as an invoice id.
+  @Get('summary')
+  @ApiOkResponse({ type: InvoiceSummaryResponse })
+  summary(@CurrentUser() user: AuthenticatedUser): Promise<InvoiceSummaryResponse> {
+    return this.invoices.summary(user.companyId);
   }
 
   @Get(':id')

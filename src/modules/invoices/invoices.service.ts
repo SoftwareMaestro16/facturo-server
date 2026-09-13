@@ -13,7 +13,9 @@ import {
 } from './invoice-persistence';
 import { dateOnly, parseDay, toInvoiceResponse } from './invoice-mapper';
 import { calculateInvoice, type LineInput } from './model/invoice-totals';
+import type { InvoiceSummaryResponse } from './dto/summary.dto';
 import { isEditable } from './model/invoice-status';
+import { monthStart, summarizeInvoices } from './model/invoice-summary';
 import { validateIssueDate } from './model/issue-date';
 
 @Injectable()
@@ -61,6 +63,29 @@ export class InvoicesService {
       })),
       meta: pageMeta(query, total),
     };
+  }
+
+  async summary(companyId: string): Promise<InvoiceSummaryResponse> {
+    const today = new Date().toISOString().slice(0, 10);
+    const outgoing = { companyId, direction: 'OUTGOING' as const };
+    const aggregate = { _count: { _all: true }, _sum: { total: true } } as const;
+
+    const [allTime, thisMonth] = await Promise.all([
+      this.prisma.invoice.groupBy({ by: ['status'], where: outgoing, ...aggregate }),
+      this.prisma.invoice.groupBy({
+        by: ['status'],
+        where: { ...outgoing, issueDate: { gte: parseDay(monthStart(today)) } },
+        ...aggregate,
+      }),
+    ]);
+
+    const toGroup = (row: (typeof allTime)[number]) => ({
+      status: row.status,
+      count: row._count._all,
+      total: row._sum.total?.toFixed(2) ?? '0.00',
+    });
+
+    return summarizeInvoices(allTime.map(toGroup), thisMonth.map(toGroup));
   }
 
   async findOne(companyId: string, id: string): Promise<InvoiceResponse> {
