@@ -41,6 +41,14 @@ export class EnvSchema {
   /// Exchanges the one-time code from the sign-in popup. Never sent to a browser.
   @IsOptional() @IsString() GOOGLE_CLIENT_SECRET?: string;
 
+  /// The interim launch strategy from docs/legal/risks-and-contacts.md: a free
+  /// beta that never touches the tax service, a real bank account or a
+  /// signed AI data-processing agreement, so the most expensive disputes
+  /// cannot arise yet. Flip to "commercial" only once that checklist is done
+  /// — it then requires the real e-Factura provider instead of forbidding it.
+  @IsIn(['beta', 'commercial'])
+  LAUNCH_PHASE: 'beta' | 'commercial' = 'beta';
+
   @IsIn(['sandbox', 'sfs'])
   EFACTURA_PROVIDER: 'sandbox' | 'sfs' = 'sandbox';
 
@@ -94,13 +102,13 @@ export function validateEnv(raw: Record<string, unknown>): EnvSchema {
   }
 
   if (parsed.NODE_ENV === 'production') {
-    assertProductionSecrets(parsed);
+    assertProductionSafety(parsed);
   }
 
   return parsed;
 }
 
-function assertProductionSecrets(env: EnvSchema): void {
+function assertProductionSafety(env: EnvSchema): void {
   const placeholders = (['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET'] as const).filter((key) =>
     env[key].includes('change_me'),
   );
@@ -113,11 +121,40 @@ function assertProductionSecrets(env: EnvSchema): void {
     throw new Error('Refusing to start: CORS_ORIGINS may not contain a wildcard when cookies are used.');
   }
 
+  if (env.LAUNCH_PHASE === 'beta') {
+    assertBetaPhaseBoundaries(env);
+    return;
+  }
+
   if (env.EFACTURA_PROVIDER === 'sandbox') {
-    throw new Error('Refusing to start: the sandbox e-Factura provider must never run in production.');
+    throw new Error('Refusing to start: LAUNCH_PHASE=commercial requires the real e-Factura provider.');
   }
 
   if (env.AI_PROVIDER === 'openai' && !env.OPENAI_API_KEY) {
     throw new Error('Refusing to start: AI_PROVIDER=openai needs OPENAI_API_KEY.');
+  }
+}
+
+/// See docs/legal/risks-and-contacts.md: while there is no lawyer-reviewed
+/// contract, no signed merchant agreement and no AI data-processing
+/// agreement, production may only run the providers that never touch a real
+/// tax authority, a real card or a real outside model.
+function assertBetaPhaseBoundaries(env: EnvSchema): void {
+  if (env.EFACTURA_PROVIDER !== 'sandbox') {
+    throw new Error(
+      'Refusing to start: LAUNCH_PHASE=beta only sends fiscal drafts through the sandbox e-Factura provider — see docs/legal/risks-and-contacts.md.',
+    );
+  }
+
+  if (env.MAIB_PROVIDER !== 'sandbox') {
+    throw new Error(
+      'Refusing to start: LAUNCH_PHASE=beta does not take real card payments — see docs/legal/risks-and-contacts.md.',
+    );
+  }
+
+  if (env.AI_PROVIDER !== 'sandbox') {
+    throw new Error(
+      'Refusing to start: LAUNCH_PHASE=beta keeps the AI assistant in sandbox until a data processing agreement is signed — see docs/legal/risks-and-contacts.md.',
+    );
   }
 }
